@@ -1,0 +1,19 @@
+# mixarr — Docker Compose.
+# Set the paths in a .env file next to this file (see .env.example), or edit the defaults below.
+# Unraid (Compose Manager plugin): Docker > Add New Stack "mixarr" > Edit Stack > Compose File (and the .env tab).
+services:
+  mixarr:
+    build: ${MIXARR_APP:-.}                       # folder containing this code
+    image: mixarr:local
+    container_name: mixarr
+    restart: unless-stopped
+    user: "${MIXARR_UID:-99}:${MIXARR_GID:-100}"  # 99:100 = nobody:users on Unraid
+    ports:
+      - "${MIXARR_PORT:-3010}:3010"
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      - AUTH_USER=${AUTH_USER:-}                  # optional password (recommended if reachable from outside your home)
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-}
+    volumes:
+      - ${MIXARR_DATA:-./data}:/app/data                       # mixarr database (cues, playlists, settings)
+      - ${MIXARR_MUSIC:-/path/to/music}:/music:ro,slave        # your music, READ-ONLY: mixarr never modifies audio files

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mixarr</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2322b8cf'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23111'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="disc"></span>mixarr</div>
+  <button type="button" id="nas-btn" class="nas" title="Ouvrir ou fermer l'accès au NAS">
+    <span class="dot"></span><span id="nas-label">NAS…</span><span id="nas-net" class="net"></span>
+  </button>
+  <button type="button" id="scan-btn" class="btn ghost" title="Relire la bibliothèque du NAS (seuls les fichiers nouveaux ou modifiés sont lus)">Analyser le NAS</button>
+  <span id="scan-info" class="muted small"></span>
+  <span class="grow"></span>
+  <label class="btn ghost" title="Importer ta collection Traktor (collection.nml)">Importer Traktor<input type="file" id="nml-input" accept=".nml,application/xml,text/xml" hidden></label>
+  <button type="button" id="export-btn" class="btn accent">Exporter vers Rekordbox</button>
+  <label class="skin-pick small muted" title="Apparence du mixeur">Skin
+    <select id="skin"><option value="base">Base</option><option value="analog">Analog</option><option value="rotary">Rotary</option></select>
+  </label>
+  <button type="button" id="lang-btn" class="btn ghost icon" title="Langue / Language"></button>
+  <button type="button" id="settings-btn" class="btn ghost icon" title="Réglages" aria-label="Réglages">⚙</button>
+</header>
+
+<section class="decks">
+  <div class="deck" id="deck-A" data-deck="A"></div>
+  <div class="mixer" id="mixer">
+    <div class="mx-head"><span class="mx-screw"></span><span class="mx-name">MIXER</span><span class="mx-skin" id="mx-skin-name"></span></div>
+    <div class="strips">
+    <div class="ch" data-ch="A">
+      <span class="lab">A</span>
+        <label class="knob k-trim" title="Gain (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-12" max="12" step="0.5" value="0" data-def="0" data-p="trim"><span>Gain</span></label>
+        <label class="knob k-eq k-hi" title="Aigu (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="high"><span>Aigu</span></label>
+        <label class="knob k-eq k-mid" title="Médium (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="mid"><span>Médium</span></label>
+        <label class="knob k-eq k-low" title="Grave (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="low"><span>Grave</span></label>
+        <label class="knob k-filter" title="Filtre (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-1" max="1" step="0.01" value="0" data-def="0" data-p="filter"><span>Filtre</span></label>
+      <label class="knob k-vol" title="Volume de la voie A (glisser, molette ; double-clic : 100 %)"><input type="range" min="0" max="1" step="0.01" value="1" data-def="1" data-p="fader" data-vol="1"><span>Ch A</span></label>
+      <div class="fader-wrap"><div class="meter"><div></div></div><input type="range" class="vfader" min="0" max="1" step="0.01" value="1" data-def="1" data-p="fader" title="Volume de la voie A (double-clic : 100 %)"></div>
+    </div>
+    <div class="ch" data-ch="B">
+      <span class="lab">B</span>
+        <label class="knob k-trim" title="Gain (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-12" max="12" step="0.5" value="0" data-def="0" data-p="trim"><span>Gain</span></label>
+        <label class="knob k-eq k-hi" title="Aigu (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="high"><span>Aigu</span></label>
+        <label class="knob k-eq k-mid" title="Médium (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="mid"><span>Médium</span></label>
+        <label class="knob k-eq k-low" title="Grave (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-26" max="6" step="0.5" value="0" data-def="0" data-p="low"><span>Grave</span></label>
+        <label class="knob k-filter" title="Filtre (glisser, molette ; double-clic : remise à zéro)"><input type="range" min="-1" max="1" step="0.01" value="0" data-def="0" data-p="filter"><span>Filtre</span></label>
+      <label class="knob k-vol" title="Volume de la voie B (glisser, molette ; double-clic : 100 %)"><input type="range" min="0" max="1" step="0.01" value="1" data-def="1" data-p="fader" data-vol="1"><span>Ch B</span></label>
+      <div class="fader-wrap"><div class="meter"><div></div></div><input type="range" class="vfader" min="0" max="1" step="0.01" value="1" data-def="1" data-p="fader" title="Volume de la voie B (double-clic : 100 %)"></div>
+    </div>
+    </div>
+    <div class="xf"><span>A</span><input type="range" id="xfader" class="hfader" min="-1" max="1" step="0.01" value="0" title="Crossfader (double-clic : centre)"><span>B</span>
+      <label class="knob k-master" title="Master (glisser, molette ; double-clic : 80 %)"><input type="range" id="master" min="0" max="1" step="0.01" value="0.8" data-def="0.8"><span>Master</span></label></div>
+  </div>
+  <div class="deck" id="deck-B" data-deck="B"></div>
+</section>
+
+<section class="browser">
+  <aside class="side">
+    <div class="side-head" data-sec="tree"><span class="sec"><span class="caret open">▸</span>Bibliothèque</span><button type="button" class="mini fold-all" data-target="tree" title="Tout replier">⊟</button></div>
+    <div id="tree" class="tree"></div>
+    <div class="side-head" data-sec="pl-mine"><span class="sec"><span class="caret open">▸</span>Mes playlists</span><button type="button" id="new-pl" class="mini" title="Nouvelle playlist">＋</button></div>
+    <div id="pl-mine" class="tree"></div>
+    <div class="side-head" data-sec="pl-traktor"><span class="sec"><span class="caret open">▸</span>Traktor</span><button type="button" class="mini fold-all" data-target="pl-traktor" title="Tout replier">⊟</button></div>
+    <div id="pl-traktor" class="tree"></div>
+  </aside>
+  <main class="list">
+    <div class="list-head">
+      <div id="list-title" class="list-title">Toute la bibliothèque</div>
+      <input type="search" id="search" placeholder="Rechercher (artiste, titre, album, dossier…)" autocomplete="off">
+      <span class="bpm-filter small muted" title="N'afficher que les morceaux dans cette plage de BPM">BPM
+        <input type="number" id="bpm-min" min="40" max="250" step="0.5" placeholder="min">–<input type="number" id="bpm-max" min="40" max="250" step="0.5" placeholder="max">
+        <button type="button" class="mini" id="bpm-near-a" title="Autour du BPM du deck A (±3 %)">≈A</button><button type="button" class="mini" id="bpm-near-b" title="Autour du BPM du deck B (±3 %)">≈B</button><button type="button" class="mini" id="bpm-clear" title="Toute la plage">×</button>
+      </span>
+      <label class="small muted target">Ajouter à <select id="target-pl"><option value="">—</option></select></label>
+      <span id="list-actions"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="tracks">
+        <thead><tr><th class="n" data-sort="index">#</th><th data-sort="artist">Artiste</th><th data-sort="title">Titre</th><th class="r" data-sort="bpm">BPM</th><th data-sort="key" id="key-head" title="Clic : trier — Maj+clic : notation (musicale / Camelot / Open Key)">Ton.</th><th class="r" data-sort="duration">Durée</th><th data-sort="format">Format</th><th class="r" data-sort="cueCount">Cues</th><th class="act"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="empty" class="empty"></div>
+    </div>
+  </main>
+</section>
+
+<dialog id="modal"><form method="dialog" class="modal-body" id="modal-body"></form></dialog>
+<div id="toasts"></div>
+
+<template id="deck-tpl">
+  <div class="deck-top">
+    <span class="deck-letter"></span>
+    <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist muted"></div></div>
+    <div class="deck-nums"><div class="d-bpm">—</div><div class="d-key muted small"></div></div>
+  </div>
+  <canvas class="wave-zoom" height="90"></canvas>
+  <canvas class="wave-over" height="44"></canvas>
+  <div class="phase" title="Phase par rapport à l'autre deck (au centre : temps calés)"><span></span><i></i></div>
+  <div class="deck-time"><span class="d-pos">0:00.0</span><span class="d-rem muted">-0:00</span><span class="d-status muted small"></span></div>
+  <div class="deck-row">
+    <button type="button" class="tbtn cue" data-a="cue" title="CUE : à l'arrêt, pose le point de départ ; en lecture, y revient">CUE</button>
+    <button type="button" class="tbtn play" data-a="play" title="Lecture / pause">▶</button>
+    <div class="pitch">
+      <input type="range" class="d-pitch" min="-8" max="8" step="0.01" value="0" title="Tempo (double-clic : 0)">
+      <div class="pitch-info"><span class="d-pitchval">0.00 %</span><button type="button" class="mini d-range" title="Plage du tempo">±8</button><button type="button" class="mini d-sync" title="Caler le tempo sur l'autre deck">SYNC</button></div>
+    </div>
+  </div>
+  <div class="pads"></div>
+  <div class="deck-row loops">
+    <button type="button" class="lbtn" data-a="in">IN</button>
+    <button type="button" class="lbtn" data-a="out">OUT</button>
+    <button type="button" class="lbtn" data-a="beat4" title="Loop de 4 temps (selon le BPM)">4</button>
+    <button type="button" class="lbtn" data-a="beat8" title="Loop de 8 temps">8</button>
+    <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
+    <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
+    <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
+    <button type="button" class="lbtn q on" data-a="q" title="Quantize : cues et loops calés sur la grille de tempo">Q</button>
+  </div>
+  <div class="memlist"></div>
+</template>
+
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

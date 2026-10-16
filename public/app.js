@@ -1,0 +1,1274 @@
+/* mixarr — interface : deux decks (Web Audio), mixeur, bibliothèque, playlists, cues / loops, import Traktor, export Rekordbox. */
+(function () {
+  'use strict';
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const t = (fr, vars) => (window.I18N ? window.I18N.t(fr, vars) : fr); // traductions (voir i18n.js)
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (s, tenth) => {
+    if (!Number.isFinite(s)) return '—';
+    const neg = s < 0; s = Math.abs(s);
+    const m = Math.floor(s / 60); const sec = s - m * 60;
+    const txt = tenth ? `${m}:${sec.toFixed(1).padStart(4, '0')}` : `${m}:${String(Math.floor(sec)).padStart(2, '0')}`;
+    return neg ? `-${txt}` : txt;
+  };
+  // Tonalité : notation musicale (stockée), Camelot ou Open Key (Traktor) à l'affichage
+  const CAMELOT = { 'C': '8B', 'Db': '3B', 'D': '10B', 'Eb': '5B', 'E': '12B', 'F': '7B', 'F#': '2B', 'G': '9B', 'Ab': '4B', 'A': '11B', 'Bb': '6B', 'B': '1B',
+    'Cm': '5A', 'Dbm': '12A', 'C#m': '12A', 'Dm': '7A', 'Ebm': '2A', 'D#m': '2A', 'Em': '9A', 'Fm': '4A', 'F#m': '11A', 'Gm': '6A', 'Abm': '1A', 'G#m': '1A', 'Am': '8A', 'Bbm': '3A', 'Bm': '10A',
+    'Gb': '2B', 'C#': '3B', 'D#': '5B', 'G#': '4B', 'A#': '6B', 'A#m': '3A', 'Gbm': '11A' };
+  const camelotToOpen = (c) => { const m = /^(\d+)([AB])$/.exec(c || ''); if (!m) return ''; const n = ((Number(m[1]) + 4) % 12) + 1; return `${n}${m[2] === 'A' ? 'm' : 'd'}`; };
+  let keyMode = 'musical';
+  try { keyMode = localStorage.getItem('mixarr-key') || 'musical'; } catch (e) { /* rien */ }
+  function showKey(k) {
+    if (!k) return '';
+    if (keyMode === 'musical') return k;
+    const c = CAMELOT[k] || (/^\d+[AB]$/.test(k) ? k : '');
+    if (!c) return k;
+    return keyMode === 'camelot' ? c : camelotToOpen(c);
+  }
+  const keySortValue = (k) => { const c = CAMELOT[k] || ''; const m = /^(\d+)([AB])$/.exec(c); return m ? Number(m[1]) * 2 + (m[2] === 'B' ? 1 : 0) : 99; };
+
+  let refDeck = null; // deck de référence pour la surbrillance « compatible » de la liste
+
+  /** Tonalités harmoniquement compatibles (roue Camelot) : même case, ±1, ou relative majeure / mineure. */
+  function keyCompat(a, b) {
+    const ca = CAMELOT[a] || (/^\d+[AB]$/.test(a || '') ? a : ''); const cb = CAMELOT[b] || (/^\d+[AB]$/.test(b || '') ? b : '');
+    const ma = /^(\d+)([AB])$/.exec(ca); const mb = /^(\d+)([AB])$/.exec(cb);
+    if (!ma || !mb) return 0;
+    const na = Number(ma[1]); const nb = Number(mb[1]);
+    if (ca === cb) return 2;
+    const d = Math.min((na - nb + 12) % 12, (nb - na + 12) % 12);
+    if (ma[2] === mb[2] && d === 1) return 1;
+    if (na === nb) return 1; // relatif
+    return 0;
+  }
+  /** BPM compatible (±3 %, ou demi / double tempo) : 2 = très proche (±1,5 %), 1 = jouable, 0 = non. */
+  function bpmCompat(bpm, ref) {
+    if (!bpm || !ref) return 0;
+    let best = Infinity;
+    for (const f of [1, 2, 0.5]) best = Math.min(best, Math.abs(bpm * f / ref - 1));
+    return best <= 0.015 ? 2 : best <= 0.03 ? 1 : 0;
+  }
+
+  const HOT_COLORS = ['#28e214', '#ff8c00', '#e13535', '#10b1e2', '#e6d200', '#aa00ff', '#304ff1', '#ff007f'];
+  const PAD = 'ABCDEFGH';
+
+  async function api(method, url, body) {
+    const res = await fetch(url, { method, headers: { 'X-Lang': window.I18N ? window.I18N.lang : 'fr', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const type = res.headers.get('content-type') || '';
+    const data = type.includes('json') ? await res.json() : await res.text();
+    if (!res.ok) throw new Error((data && data.error) || t('Erreur {status}', { status: res.status }));
+    return data;
+  }
+
+  function toast(msg, kind) {
+    const el = document.createElement('div');
+    el.className = `toast${kind === 'error' ? ' error' : ''}`;
+    el.textContent = msg;
+    $('#toasts').appendChild(el);
+    setTimeout(() => el.remove(), kind === 'error' ? 7000 : 3500);
+  }
+
+  // ===========================================================================
+  // MOTEUR AUDIO
+  // ===========================================================================
+
+  let ctx = null;
+  let master = null;
+  const xf = { value: 0 };
+
+  function audio() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+      master = ctx.createGain();
+      master.gain.value = Number($('#master').value);
+      master.connect(ctx.destination);
+      decks.A.buildChain(); decks.B.buildChain();
+      applyCrossfader();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  const dbToGain = (db) => Math.pow(10, db / 20);
+
+  class Deck {
+    constructor(id) {
+      this.id = id;
+      this.el = $(`#deck-${id}`);
+      this.el.appendChild($('#deck-tpl').content.cloneNode(true));
+      $('.deck-letter', this.el).textContent = id;
+      this.track = null;       // fiche du morceau (API)
+      this.buffer = null;      // AudioBuffer
+      this.peaks = null;       // { rate, max: Float32Array }
+      this.cues = [];
+      this.source = null;
+      this.playing = false;
+      this.offset = 0;         // position (s) au dernier départ
+      this.startedAt = 0;      // ctx.currentTime au dernier départ
+      this.rate = 1;
+      this.range = 8;
+      this.mainCue = 0;
+      this.loop = null;        // { start, end, active }
+      this.loopIn = null;
+      this.loading = 0;
+      this.quant = true; // quantize activé par défaut, comme dans Traktor
+      this.bindUi();
+      this.renderPads();
+      this.renderMem();
+    }
+
+    buildChain() {
+      const c = ctx;
+      this.trim = c.createGain();
+      this.low = c.createBiquadFilter(); this.low.type = 'lowshelf'; this.low.frequency.value = 220;
+      this.mid = c.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 1100; this.mid.Q.value = 0.8;
+      this.high = c.createBiquadFilter(); this.high.type = 'highshelf'; this.high.frequency.value = 4200;
+      this.filter = c.createBiquadFilter(); this.filter.type = 'allpass';
+      this.fader = c.createGain();
+      this.xgain = c.createGain();
+      this.analyser = c.createAnalyser(); this.analyser.fftSize = 512;
+      this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.filter);
+      this.filter.connect(this.fader); this.fader.connect(this.xgain); this.xgain.connect(master);
+      this.fader.connect(this.analyser);
+      $$(`.ch[data-ch="${this.id}"] input`).forEach((inp) => this.setParam(inp.dataset.p, Number(inp.value)));
+    }
+
+    setParam(p, v) {
+      if (!ctx) return;
+      if (p === 'trim') this.trim.gain.value = dbToGain(v);
+      else if (p === 'low' || p === 'mid' || p === 'high') this[p].gain.value = v;
+      else if (p === 'fader') this.fader.gain.value = v * v;
+      else if (p === 'filter') {
+        // un seul bouton : à gauche passe-bas, à droite passe-haut, au centre neutre
+        if (Math.abs(v) < 0.03) { this.filter.type = 'allpass'; return; }
+        this.filter.type = v < 0 ? 'lowpass' : 'highpass';
+        this.filter.Q.value = 0.9;
+        this.filter.frequency.value = v < 0 ? 20000 * Math.pow(0.0075, -v) : 20 * Math.pow(400, v);
+      }
+    }
+
+    get duration() { return this.buffer ? this.buffer.duration : 0; }
+
+    get position() {
+      if (!this.playing) return this.offset;
+      let p = this.offset + (ctx.currentTime - this.startedAt) * this.rate;
+      if (this.loop && this.loop.active && p >= this.loop.end) {
+        const len = this.loop.end - this.loop.start;
+        p = this.loop.start + ((p - this.loop.start) % len);
+      }
+      return Math.min(p, this.duration);
+    }
+
+    // ---------- chargement ----------
+    async load(track) {
+      audio();
+      const token = ++this.loading;
+      this.stopSource();
+      this.playing = false;
+      this.track = track;
+      this.buffer = null; this.peaks = null; this.offset = 0; this.mainCue = 0; this.loop = null; this.loopIn = null;
+      this.cues = [];
+      this.status(t('Chargement…'));
+      this.renderInfo();
+      try {
+        const [full, res] = await Promise.all([
+          api('GET', `/api/track?path=${encodeURIComponent(track.path)}`),
+          fetch(`/api/audio?path=${encodeURIComponent(track.path)}`, { headers: { 'X-Lang': window.I18N.lang } })
+        ]);
+        if (!res.ok) { let msg = `Erreur ${res.status}`; try { msg = (await res.json()).error || msg; } catch (e) { /* texte */ } throw new Error(msg); }
+        const data = await res.arrayBuffer();
+        if (token !== this.loading) return;
+        this.status(t('Décodage…'));
+        const buf = await ctx.decodeAudioData(data);
+        if (token !== this.loading) return;
+        this.track = full;
+        this.buffer = buf;
+        this.cues = full.cues || [];
+        this.peaks = computePeaks(buf);
+        const firstHot = this.cues.find((c) => c.kind !== 'loop' && c.kind === 'memory') || null;
+        this.mainCue = firstHot ? firstHot.start : 0;
+        this.offset = this.mainCue;
+        this.status('');
+        this.renderInfo(); this.renderPads(); this.renderMem(); this.renderLoopBtns();
+        refDeck = this; library.renderRows(); // la liste montre ce qui s'enchaîne avec ce morceau
+      } catch (e) {
+        if (token !== this.loading) return;
+        this.status('');
+        this.track = null;
+        this.renderInfo();
+        toast(t('Deck {id} : {msg}', { id: this.id, msg: e.message }), 'error');
+      }
+    }
+
+    status(t) { $('.d-status', this.el).textContent = t; }
+
+    // ---------- transport ----------
+    stopSource() {
+      if (this.source) { try { this.source.onended = null; this.source.stop(); } catch (e) { /* déjà arrêté */ } this.source.disconnect(); this.source = null; }
+    }
+
+    startAt(pos) {
+      this.stopSource();
+      const s = ctx.createBufferSource();
+      s.buffer = this.buffer;
+      s.playbackRate.value = this.rate;
+      if (this.loop && this.loop.active) { s.loop = true; s.loopStart = this.loop.start; s.loopEnd = this.loop.end; }
+      s.connect(this.trim);
+      s.onended = () => { if (this.source === s) { this.playing = false; this.offset = this.duration; this.source = null; this.renderTransport(); } };
+      s.start(0, Math.max(0, Math.min(pos, this.duration - 0.001)));
+      this.source = s;
+      this.offset = pos;
+      this.startedAt = ctx.currentTime;
+      this.playing = true;
+    }
+
+    play() { if (!this.buffer) return; audio(); refDeck = this; this.startAt(this.offset >= this.duration ? 0 : this.offset); this.renderTransport(); }
+    pause() { if (!this.playing) return; this.offset = this.position; this.stopSource(); this.playing = false; this.renderTransport(); }
+    toggle() { this.playing ? this.pause() : this.play(); }
+
+    seek(pos) {
+      if (!this.buffer) return;
+      pos = Math.max(0, Math.min(pos, this.duration));
+      if (this.loop && this.loop.active && (pos < this.loop.start || pos > this.loop.end)) this.loop.active = false;
+      if (this.playing) this.startAt(pos); else this.offset = pos;
+      this.renderLoopBtns();
+    }
+
+    cue() {
+      if (!this.buffer) return;
+      if (this.playing) { this.pause(); this.seek(this.mainCue); }
+      else { this.mainCue = this.position; }
+    }
+
+    setRate(pct) {
+      const p = this.position;
+      this.rate = 1 + pct / 100;
+      if (this.source) { this.source.playbackRate.value = this.rate; this.offset = p; this.startedAt = ctx.currentTime; }
+      $('.d-pitchval', this.el).textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)} %`;
+      this.renderInfo();
+      clearTimeout(this.compatTimer);
+      if (refDeck === this) this.compatTimer = setTimeout(() => library.renderRows(), 250);
+    }
+
+    /** Quantize (bouton Q) : cale une position sur le temps le plus proche de la grille, si BPM et grille sont connus. */
+    snap(t) {
+      if (!this.quant || !this.bpm || !this.track || !Number.isFinite(this.track.gridStart)) return t;
+      const beat = 60 / this.bpm;
+      return Math.max(0, this.track.gridStart + Math.round((t - this.track.gridStart) / beat) * beat);
+    }
+
+    get bpm() { return this.track && this.track.bpm ? this.track.bpm : null; }
+
+    // ---------- loops ----------
+    setLoop(start, end) {
+      const pos = this.position;
+      this.loop = { start, end, active: true };
+      if (this.playing) this.startAt(pos >= start && pos < end ? pos : start);
+      else this.offset = start;
+      this.renderLoopBtns();
+    }
+
+    loopAction(a) {
+      if (!this.buffer) return;
+      const pos = this.position;
+      if (a === 'q') { this.quant = !this.quant; this.renderLoopBtns(); return; }
+      if (a === 'in') { this.loopIn = this.snap(pos); this.renderLoopBtns(); }
+      else if (a === 'out') {
+        const start = this.loopIn ?? (this.loop ? this.loop.start : null);
+        if (start === null || pos <= start + 0.05) { toast(t("Pose d'abord le début de la loop (IN).")); return; }
+        this.setLoop(start, Math.max(start + 0.05, this.snap(pos))); this.loopIn = null;
+      } else if (a === 'beat4' || a === 'beat8') {
+        if (!this.bpm) { toast(t('BPM inconnu pour ce morceau : pose la loop avec IN / OUT.')); return; }
+        const beats = a === 'beat4' ? 4 : 8;
+        const beat = 60 / this.bpm;
+        let start = pos;
+        if (Number.isFinite(this.track.gridStart)) start = this.track.gridStart + Math.round((pos - this.track.gridStart) / beat) * beat; // calé sur la grille
+        this.setLoop(Math.max(0, start), Math.max(0, start) + beats * beat);
+      } else if (a === 'exit') {
+        if (!this.loop) return;
+        const p = this.position;
+        this.loop.active = !this.loop.active;
+        if (this.playing) this.startAt(this.loop.active ? (p >= this.loop.start && p < this.loop.end ? p : this.loop.start) : p);
+        this.renderLoopBtns();
+      } else if (a === 'memloop') {
+        if (!this.loop) { toast(t('Aucune loop à enregistrer.')); return; }
+        this.addCue({ kind: 'loop', num: -1, start: this.loop.start, end: this.loop.end });
+      } else if (a === 'memcue') {
+        this.addCue({ kind: 'memory', num: -1, start: this.snap(pos) });
+      }
+    }
+
+    // ---------- cues ----------
+    addCue(c) {
+      this.cues.push({ id: Math.random().toString(16).slice(2, 10), name: '', color: '', ...c });
+      this.cues.sort((x, y) => x.start - y.start);
+      this.saveCues();
+    }
+
+    padClick(n, ev) {
+      if (!this.buffer) return;
+      const existing = this.cues.find((c) => c.num === n && c.kind !== 'memory');
+      if (ev.shiftKey || ev.type === 'contextmenu') { // effacer
+        if (existing) { this.cues = this.cues.filter((c) => c !== existing); this.saveCues(); }
+        return;
+      }
+      const btn = $$('.pad', this.el)[n];
+      if (btn) { btn.classList.remove('hit'); void btn.offsetWidth; btn.classList.add('hit'); }
+      if (existing) {
+        if (existing.kind === 'loop') this.setLoop(existing.start, existing.end);
+        else this.seek(existing.start);
+        if (!this.playing) this.mainCue = existing.start;
+        return;
+      }
+      if (this.loop && this.loop.active) this.addCue({ kind: 'loop', num: n, start: this.loop.start, end: this.loop.end, color: HOT_COLORS[n] });
+      else this.addCue({ kind: 'hot', num: n, start: this.snap(this.position), color: HOT_COLORS[n] });
+    }
+
+    saveCues() {
+      this.renderPads(); this.renderMem();
+      if (!this.track) return;
+      const path = this.track.path;
+      clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(async () => {
+        try {
+          const r = await api('PUT', '/api/track/cues', { path, cues: this.cues });
+          if (this.track && this.track.path === path) this.cues = r.cues;
+          library.updateCount(path, r.cues.length);
+        } catch (e) { toast(t('Cues non enregistrés : {msg}', { msg: e.message }), 'error'); }
+      }, 300);
+    }
+
+    // ---------- rendu ----------
+    renderInfo() {
+      const t = this.track;
+      $('.d-title', this.el).textContent = t ? (t.title || t.path) : window.I18N.t('Glisse un morceau ici');
+      $('.d-artist', this.el).textContent = t ? t.artist : '';
+      $('.d-bpm', this.el).textContent = this.bpm ? (this.bpm * this.rate).toFixed(2) : '—';
+      $('.d-key', this.el).textContent = t ? [showKey(t.key), t.format].filter(Boolean).join(' · ') : '';
+    }
+
+    renderTransport() {
+      $('[data-a="play"]', this.el).classList.toggle('on', this.playing);
+      $('[data-a="play"]', this.el).textContent = this.playing ? '❚❚' : '▶';
+    }
+
+    renderLoopBtns() {
+      $('[data-a="in"]', this.el).classList.toggle('armed', this.loopIn !== null);
+      $('[data-a="exit"]', this.el).classList.toggle('on', Boolean(this.loop && this.loop.active));
+      $('[data-a="q"]', this.el).classList.toggle('on', this.quant);
+    }
+
+    renderPads() {
+      const box = $('.pads', this.el);
+      box.innerHTML = '';
+      for (let n = 0; n < 8; n++) {
+        const c = this.cues.find((x) => x.num === n && x.kind !== 'memory');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `pad${c ? ' set' : ''}${c && c.kind === 'loop' ? ' loop' : ''}`;
+        b.textContent = PAD[n];
+        if (c) { b.style.background = c.color || HOT_COLORS[n]; b.style.setProperty('--pad', c.color || HOT_COLORS[n]); }
+        b.title = c ? `${t(c.kind === 'loop' ? 'Hot loop {pad} à {time}' : 'Hot cue {pad} à {time}', { pad: PAD[n], time: fmt(c.start, true) })}${c.name ? ` « ${c.name} »` : ''}${t(' — Maj+clic ou clic droit : effacer')}` : t('Hot cue {pad} : clic pour poser (pendant une loop : hot loop)', { pad: PAD[n] });
+        b.addEventListener('click', (ev) => this.padClick(n, ev));
+        b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); this.padClick(n, ev); });
+        box.appendChild(b);
+      }
+    }
+
+    renderMem() {
+      const box = $('.memlist', this.el);
+      box.innerHTML = '';
+      this.cues.filter((c) => c.num < 0).forEach((c) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<b>${c.kind === 'loop' ? '⟲' : '♦'}</b>${fmt(c.start, true)}${c.kind === 'loop' ? `–${fmt(c.end, true)}` : ''}${c.name ? ` ${esc(c.name)}` : ''}<button type="button" title="${t('Supprimer')}">×</button>`;
+        chip.title = t('Clic : y aller — double-clic : renommer');
+        chip.addEventListener('click', (ev) => {
+          if (ev.target.tagName === 'BUTTON') { this.cues = this.cues.filter((x) => x !== c); this.saveCues(); return; }
+          if (c.kind === 'loop') this.setLoop(c.start, c.end); else this.seek(c.start);
+        });
+        chip.addEventListener('dblclick', () => {
+          const name = prompt(t('Nom du repère (visible dans Rekordbox) :'), c.name || '');
+          if (name !== null) { c.name = name.slice(0, 60); this.saveCues(); }
+        });
+        box.appendChild(chip);
+      });
+    }
+
+    bindUi() {
+      $('[data-a="play"]', this.el).addEventListener('click', () => this.toggle());
+      $('[data-a="cue"]', this.el).addEventListener('click', () => this.cue());
+      $$('.lbtn', this.el).forEach((b) => b.addEventListener('click', () => this.loopAction(b.dataset.a)));
+      const pitch = $('.d-pitch', this.el);
+      pitch.addEventListener('input', () => this.setRate(Number(pitch.value)));
+      pitch.addEventListener('dblclick', () => { pitch.value = 0; this.setRate(0); });
+      $('.d-range', this.el).addEventListener('click', (ev) => {
+        this.range = this.range === 8 ? 16 : this.range === 16 ? 50 : 8;
+        pitch.min = -this.range; pitch.max = this.range;
+        ev.target.textContent = `±${this.range}`;
+      });
+      $('.d-sync', this.el).addEventListener('click', () => {
+        const other = this.id === 'A' ? decks.B : decks.A;
+        if (!this.bpm || !other.bpm) { toast(t("BPM inconnu sur l'un des deux decks.")); return; }
+        let pct = ((other.bpm * other.rate) / this.bpm - 1) * 100;
+        if (Math.abs(pct) > this.range) { this.range = 50; pitch.min = -50; pitch.max = 50; $('.d-range', this.el).textContent = '±50'; }
+        pct = Math.max(-50, Math.min(50, pct));
+        pitch.value = pct; this.setRate(pct);
+      });
+      // clic sur les formes d'onde : se placer
+      const over = $('.wave-over', this.el);
+      over.addEventListener('click', (ev) => { const r = over.getBoundingClientRect(); this.seek(((ev.clientX - r.left) / r.width) * this.duration); });
+      const zoom = $('.wave-zoom', this.el);
+      let drag = null;
+      zoom.addEventListener('pointerdown', (ev) => { if (!this.buffer) return; drag = { x: ev.clientX, pos: this.position, was: this.playing }; if (this.playing) this.pause(); zoom.setPointerCapture(ev.pointerId); });
+      zoom.addEventListener('pointermove', (ev) => { if (!drag) return; const w = zoom.getBoundingClientRect().width; this.seek(drag.pos - ((ev.clientX - drag.x) / w) * ZOOM_SECONDS); });
+      zoom.addEventListener('pointerup', () => { if (drag && drag.was) this.play(); drag = null; });
+      // glisser un morceau de la liste sur le deck
+      this.el.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-track')) { ev.preventDefault(); this.el.classList.add('drop'); } });
+      this.el.addEventListener('dragleave', () => this.el.classList.remove('drop'));
+      this.el.addEventListener('drop', (ev) => {
+        this.el.classList.remove('drop');
+        const data = ev.dataTransfer.getData('application/x-mixarr-track');
+        if (data) { ev.preventDefault(); this.load(JSON.parse(data)); }
+      });
+    }
+  }
+
+  // ===========================================================================
+  // FORMES D'ONDE
+  // ===========================================================================
+
+  const PEAK_RATE = 150; // valeurs par seconde
+  const ZOOM_SECONDS = 8;
+
+  /**
+   * Formes d'onde « 3 bandes » (façon Rekordbox / Traktor) : pour chaque tranche de 1/150 s, le pic du signal complet
+   * et celui des graves (< ~250 Hz), des médiums et des aigus (> ~2,5 kHz), séparés par de simples filtres du 1er ordre.
+   * Calcul unique au chargement du morceau (~0,2 s pour 8 min).
+   */
+  function computePeaks(buf) {
+    const sr = buf.sampleRate;
+    const n = Math.ceil(buf.duration * PEAK_RATE);
+    const max = new Float32Array(n); const lo = new Float32Array(n); const mi = new Float32Array(n); const hi = new Float32Array(n);
+    const c0 = buf.getChannelData(0); const c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
+    const aL = Math.exp(-2 * Math.PI * 250 / sr); const aH = Math.exp(-2 * Math.PI * 2500 / sr);
+    let l1 = 0, l2 = 0, h1 = 0, h2 = 0;
+    const step = sr / PEAK_RATE;
+    for (let i = 0; i < n; i++) {
+      const a = Math.floor(i * step); const b = Math.min(c0.length, Math.floor((i + 1) * step));
+      let m = 0, ml = 0, mm = 0, mh = 0;
+      for (let j = a; j < b; j++) {
+        const x = (c0[j] + c1[j]) * 0.5;
+        l1 = (1 - aL) * x + aL * l1; l2 = (1 - aL) * l1 + aL * l2;   // passe-bas 2 pôles : graves
+        h1 = (1 - aH) * x + aH * h1; h2 = (1 - aH) * h1 + aH * h2;   // passe-bas 2,5 kHz ; aigus = reste
+        const high = x - h2; const mid = h2 - l2;
+        const ax = x < 0 ? -x : x; if (ax > m) m = ax;
+        const al = l2 < 0 ? -l2 : l2; if (al > ml) ml = al;
+        const am = mid < 0 ? -mid : mid; if (am > mm) mm = am;
+        const ah = high < 0 ? -high : high; if (ah > mh) mh = ah;
+      }
+      max[i] = m; lo[i] = ml; mi[i] = mm; hi[i] = mh;
+    }
+    let top = 0; for (let i = 0; i < n; i++) if (max[i] > top) top = max[i];
+    if (top > 0) for (let i = 0; i < n; i++) { max[i] /= top; lo[i] = Math.min(1, lo[i] / top); mi[i] = Math.min(1, (mi[i] / top) * 1.25); hi[i] = Math.min(1, (hi[i] / top) * 1.7); }
+    return { rate: PEAK_RATE, max, lo, mi, hi };
+  }
+
+  /** Couleurs des 3 bandes (réglables par skin : --wf-lo / --wf-mi / --wf-hi). */
+  function waveColors() {
+    const cs = getComputedStyle(document.body);
+    return { lo: cs.getPropertyValue('--wf-lo').trim() || '#2f6df2', mi: cs.getPropertyValue('--wf-mi').trim() || '#f2992e', hi: cs.getPropertyValue('--wf-hi').trim() || '#f4f1ea' };
+  }
+
+  /** Pics d'une plage d'indices [i0, i1[ (le plus fort de chaque bande). */
+  function peakRange(pk, i0, i1) {
+    let m = 0, l = 0, md = 0, h = 0;
+    for (let i = Math.max(0, i0); i < Math.min(i1, pk.max.length); i++) {
+      if (pk.max[i] > m) m = pk.max[i]; if (pk.lo[i] > l) l = pk.lo[i]; if (pk.mi[i] > md) md = pk.mi[i]; if (pk.hi[i] > h) h = pk.hi[i];
+    }
+    return [m, l, md, h];
+  }
+
+  /** Dessine une colonne 3 bandes centrée (graves au fond, médiums, aigus devant). */
+  function drawColumn(g, x, h, v, col, scale) {
+    const [, l, m, hh] = v;
+    const mid = h / 2;
+    const bl = Math.max(1, l * scale), bm = Math.max(0, m * scale * 0.82), bh = Math.max(0, hh * scale * 0.6);
+    g.fillStyle = col.lo; g.fillRect(x, mid - bl / 2, 1, bl);
+    if (bm >= 1) { g.fillStyle = col.mi; g.fillRect(x, mid - bm / 2, 1, bm); }
+    if (bh >= 1) { g.fillStyle = col.hi; g.fillRect(x, mid - bh / 2, 1, bh); }
+  }
+
+  function sizeCanvas(cv) {
+    const r = cv.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width * dpr)); const h = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    return { w, h, dpr };
+  }
+
+  function cueColor(c) { return c.kind === 'memory' || c.num < 0 ? '#d68bff' : (c.color || HOT_COLORS[c.num]); }
+
+  /** Vue d'ensemble pré-rendue (une seule fois par morceau et par taille) ; à chaque image on n'ajoute que le curseur. */
+  function overviewImage(d, w, h) {
+    if (d.overCache && d.overCache.w === w && d.overCache.h === h && d.overCache.peaks === d.peaks && d.overCache.skin === document.body.dataset.skin) return d.overCache.canvas;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); const col = waveColors(); const n = d.peaks.max.length;
+    for (let x = 0; x < w; x++) {
+      const a = Math.floor((x / w) * n); const b = Math.max(a + 1, Math.floor(((x + 1) / w) * n));
+      drawColumn(g, x, h, peakRange(d.peaks, a, b), col, h - 4);
+    }
+    d.overCache = { w, h, peaks: d.peaks, skin: document.body.dataset.skin, canvas: cv };
+    return cv;
+  }
+
+  function drawDeck(d) {
+    // --- vue d'ensemble ---
+    const over = $('.wave-over', d.el);
+    let { w, h, dpr } = sizeCanvas(over);
+    let g = over.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    if (d.peaks) {
+      const pos = d.position;
+      const px = (pos / d.duration) * w;
+      g.drawImage(overviewImage(d, w, h), 0, 0);
+      g.fillStyle = 'rgba(8,9,11,.55)'; g.fillRect(0, 0, px, h); // partie déjà jouée assombrie
+      if (d.loop) { g.fillStyle = d.loop.active ? 'rgba(60,207,110,.28)' : 'rgba(255,255,255,.08)'; g.fillRect((d.loop.start / d.duration) * w, 0, Math.max(2, ((d.loop.end - d.loop.start) / d.duration) * w), h); }
+      for (const c of d.cues) { g.fillStyle = cueColor(c); g.fillRect(Math.round((c.start / d.duration) * w), 0, 2 * dpr, h); }
+      g.fillStyle = '#fff'; g.fillRect(Math.round(px), 0, 2 * dpr, h);
+    }
+    // --- vue zoomée (la tête de lecture au centre) ---
+    const zoom = $('.wave-zoom', d.el);
+    ({ w, h, dpr } = sizeCanvas(zoom));
+    g = zoom.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    if (d.peaks) {
+      const pos = d.position;
+      const span = ZOOM_SECONDS;
+      const t0 = pos - span / 2;
+      const perPx = (span * d.peaks.rate) / w;
+      const col = waveColors();
+      if (d.loop) {
+        const x1 = ((d.loop.start - t0) / span) * w; const x2 = ((d.loop.end - t0) / span) * w;
+        g.fillStyle = d.loop.active ? 'rgba(60,207,110,.20)' : 'rgba(255,255,255,.06)'; g.fillRect(x1, 0, x2 - x1, h);
+      }
+      for (let x = 0; x < w; x++) {
+        const i0 = Math.floor((t0 * d.peaks.rate) + x * perPx);
+        const i1 = Math.max(i0 + 1, Math.floor((t0 * d.peaks.rate) + (x + 1) * perPx));
+        if (i1 <= 0 || i0 >= d.peaks.max.length) continue;
+        g.globalAlpha = x < w / 2 ? 0.5 : 1;
+        drawColumn(g, x, h, peakRange(d.peaks, i0, i1), col, h - 6);
+      }
+      g.globalAlpha = 1;
+      // grille de tempo (par-dessus, discrète ; temps fort toutes les 4)
+      if (d.bpm && Number.isFinite(d.track.gridStart)) {
+        const beat = 60 / d.bpm;
+        const first = Math.ceil((t0 - d.track.gridStart) / beat);
+        for (let k = first; ; k++) {
+          const t = d.track.gridStart + k * beat; if (t > t0 + span) break;
+          const x = ((t - t0) / span) * w;
+          g.fillStyle = k % 4 === 0 ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.16)';
+          if (k % 4 === 0) { g.fillRect(Math.round(x), 0, dpr, 5 * dpr); g.fillRect(Math.round(x), h - 5 * dpr, dpr, 5 * dpr); }
+          g.fillStyle = k % 4 === 0 ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.07)';
+          g.fillRect(Math.round(x), 0, dpr, h);
+        }
+      }
+      g.font = `600 ${10 * dpr}px system-ui`;
+      for (const c of d.cues) {
+        const x = ((c.start - t0) / span) * w;
+        if (x < -20 || x > w + 20) continue;
+        const cc = cueColor(c);
+        g.fillStyle = cc; g.fillRect(Math.round(x), 0, 2 * dpr, h);
+        g.fillRect(Math.round(x), 0, 13 * dpr, 13 * dpr); // drapeau
+        g.fillStyle = '#111'; g.fillText(c.num >= 0 ? PAD[c.num] : (c.kind === 'loop' ? '⟲' : '♦'), x + 3 * dpr, 10 * dpr);
+        if (c.name) { g.fillStyle = cc; g.fillText(c.name, x + 16 * dpr, 10 * dpr); }
+      }
+      if (!d.playing && Number.isFinite(d.mainCue)) { const x = ((d.mainCue - t0) / span) * w; g.fillStyle = '#e6b422'; g.fillRect(Math.round(x), h - 6 * dpr, 2 * dpr, 6 * dpr); }
+      // tête de lecture lumineuse
+      g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(Math.round(w / 2) - 3 * dpr, 0, 8 * dpr, h);
+      g.fillStyle = '#fff'; g.fillRect(Math.round(w / 2), 0, 2 * dpr, h);
+    } else if ($('.d-status', d.el).textContent) {
+      g.fillStyle = '#5b6168'; g.font = `${12 * dpr}px system-ui`; g.fillText($('.d-status', d.el).textContent, 12 * dpr, h / 2);
+    }
+    drawPhase(d);
+    // --- temps, vu-mètre ---
+    $('.d-pos', d.el).textContent = fmt(d.position, true);
+    $('.d-rem', d.el).textContent = d.buffer ? fmt(-(d.duration - d.position) / d.rate) : '-0:00';
+    if (d.analyser) {
+      const arr = new Uint8Array(d.analyser.fftSize);
+      d.analyser.getByteTimeDomainData(arr);
+      let peak = 0; for (const v of arr) { const a = Math.abs(v - 128) / 128; if (a > peak) peak = a; }
+      const bar = $(`.ch[data-ch="${d.id}"] .meter div`);
+      bar.style.height = `${Math.min(100, peak * 110)}%`;
+    }
+  }
+
+  /** Phase d'un deck dans sa mesure de temps : 0..1 (0 = sur le temps), ou null sans BPM / grille. */
+  function beatPhase(d) {
+    if (!d.buffer || !d.bpm || !Number.isFinite(d.track && d.track.gridStart)) return null;
+    const beat = 60 / d.bpm;
+    const f = ((d.position - d.track.gridStart) / beat) % 1;
+    return f < 0 ? f + 1 : f;
+  }
+
+  /** Indicateur de phase : décalage de ce deck par rapport à l'autre (quand les deux jouent), en fraction de temps. */
+  function drawPhase(d) {
+    const el = $('.phase', d.el);
+    const other = d.id === 'A' ? decks.B : decks.A;
+    const a = beatPhase(d); const b = beatPhase(other);
+    const on = d.playing && other.playing && a !== null && b !== null;
+    el.classList.toggle('on', on);
+    if (!on) return;
+    let diff = a - b; if (diff > 0.5) diff -= 1; if (diff < -0.5) diff += 1;
+    $('i', el).style.left = `${50 + diff * 100}%`;
+    el.classList.toggle('locked', Math.abs(diff) < 0.04);
+  }
+
+  function frame() {
+    drawDeck(decks.A); drawDeck(decks.B);
+    for (const d of [decks.A, decks.B]) d.el.classList.toggle('playing', d.playing);
+    requestAnimationFrame(frame);
+  }
+
+  // ===========================================================================
+  // MIXEUR
+  // ===========================================================================
+
+  function applyCrossfader() {
+    if (!ctx) return;
+    const v = (xf.value + 1) / 2; // 0 = tout A, 1 = tout B
+    // courbe à puissance constante, plein volume des deux côtés au centre
+    decks.A.xgain.gain.value = Math.min(1, Math.cos(v * Math.PI / 2) / Math.SQRT1_2);
+    decks.B.xgain.gain.value = Math.min(1, Math.sin(v * Math.PI / 2) / Math.SQRT1_2);
+  }
+
+  /** Remet un réglage à sa valeur de départ (data-def) et prévient les écouteurs. */
+  function resetInput(inp) {
+    inp.value = inp.dataset.def ?? 0;
+    inp.dispatchEvent(new Event('input'));
+  }
+
+  /**
+   * Potard : un <input type=range> caché + un bouton rond qu'on tourne en glissant verticalement (Maj : réglage fin),
+   * à la molette ou aux flèches du clavier ; double-clic : valeur de départ. L'arc part du centre pour les réglages
+   * « bipolaires » (EQ, filtre, gain) et du minimum pour les autres (master).
+   */
+  function makeKnob(label) {
+    const inp = $('input', label);
+    const min = Number(inp.min); const max = Number(inp.max); const step = Number(inp.step) || 0.01;
+    const def = Number(inp.dataset.def ?? inp.value);
+    const bipolar = def > min && def < max; // le zéro (valeur de départ) est à midi, même si la plage n'est pas symétrique (EQ : -26 / +6 dB)
+    // valeur <-> position 0..1 : en deux moitiés autour de la valeur de départ
+    const toPos = (v) => (!bipolar ? (v - min) / (max - min) : v <= def ? 0.5 * (v - min) / (def - min) : 0.5 + 0.5 * (v - def) / (max - def));
+    const fromPos = (f) => { f = Math.max(0, Math.min(1, f)); return !bipolar ? min + f * (max - min) : f <= 0.5 ? min + (f / 0.5) * (def - min) : def + ((f - 0.5) / 0.5) * (max - def); };
+    const kn = document.createElement('div');
+    kn.className = 'kn'; kn.tabIndex = 0;
+    kn.setAttribute('role', 'slider');
+    kn.setAttribute('aria-label', $('span', label)?.textContent || inp.dataset.p || '');
+    kn.innerHTML = '<div class="kn-ring"></div><div class="kn-cap"><i></i></div>';
+    label.insertBefore(kn, inp);
+    inp.classList.add('kn-in');
+    inp.tabIndex = -1;
+    const ring = $('.kn-ring', kn); const cap = $('.kn-cap', kn);
+    const draw = () => {
+      const a = 270 * toPos(Number(inp.value)); // 0..270°, depuis la position « 7 h »
+      // skin Base : anneau de niveau bleu depuis le minimum (comme une couronne de LED) ; autres skins : depuis le zéro
+      const a0 = bipolar && document.body.dataset.skin !== 'base' ? 135 : 0;
+      const s0 = Math.min(a0, a); const s1 = Math.max(a0, a);
+      cap.style.transform = `rotate(${a - 135}deg)`;
+      ring.style.background = `conic-gradient(from -135deg, transparent 0deg ${s0}deg, var(--kn-arc) ${s0}deg ${s1}deg, var(--kn-track) ${s1}deg 270deg, transparent 270deg), conic-gradient(from -135deg, var(--kn-track) 0deg ${s0}deg, transparent ${s0}deg)`;
+      kn.setAttribute('aria-valuenow', inp.value);
+      kn.classList.toggle('kn-zero', Math.abs(Number(inp.value) - Number(inp.dataset.def ?? 0)) < step / 2);
+    };
+    const setPos = (f) => {
+      if (bipolar && Math.abs(f - 0.5) < 0.015) f = 0.5; // petit cran au centre
+      const v = Math.max(min, Math.min(max, Math.round(fromPos(f) / step) * step));
+      inp.value = v; inp.dispatchEvent(new Event('input'));
+    };
+    const pos = () => toPos(Number(inp.value));
+    let drag = null;
+    kn.addEventListener('pointerdown', (ev) => { drag = { y: ev.clientY, f: pos() }; kn.setPointerCapture(ev.pointerId); kn.classList.add('grab'); ev.preventDefault(); });
+    kn.addEventListener('pointermove', (ev) => { if (!drag) return; const range = ev.shiftKey ? 900 : 180; setPos(drag.f + (drag.y - ev.clientY) / range); });
+    const end = () => { drag = null; kn.classList.remove('grab'); };
+    kn.addEventListener('pointerup', end); kn.addEventListener('pointercancel', end);
+    kn.addEventListener('dblclick', () => resetInput(inp));
+    kn.addEventListener('wheel', (ev) => { ev.preventDefault(); setPos(pos() - Math.sign(ev.deltaY) / 40); }, { passive: false });
+    kn.addEventListener('keydown', (ev) => {
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key];
+      if (d) { ev.preventDefault(); setPos(pos() + d / 40); } else if (ev.key === 'Home' || ev.key === '0') { ev.preventDefault(); resetInput(inp); }
+    });
+    inp.addEventListener('input', draw);
+    inp._draw = draw;
+    draw();
+  }
+
+  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary' };
+  function applySkin(name) {
+    if (!SKINS[name]) name = 'base';
+    document.body.dataset.skin = name;
+    $$('.mixer .knob input').forEach((i) => i._draw && i._draw());
+    $('#skin').value = name;
+    $('#mx-skin-name').textContent = name === 'base' ? '' : name === 'rotary' ? 'ROTARY MIXER' : SKINS[name].toUpperCase();
+    // une table rotative n'a pas de crossfader : on le remet au centre pour ne couper aucune voie
+    if (name === 'rotary') { const x = $('#xfader'); if (Number(x.value) !== 0) { x.value = 0; xf.value = 0; applyCrossfader(); } }
+    try { localStorage.setItem('mixarr-skin', name); } catch (e) { /* stockage indisponible : valable pour cette visite */ }
+  }
+
+  function bindMixer() {
+    $$('.mixer .knob').forEach(makeKnob);
+    $$('.ch').forEach((ch) => {
+      const d = decks[ch.dataset.ch];
+      $$('input', ch).forEach((inp) => inp.addEventListener('input', () => d.setParam(inp.dataset.p, Number(inp.value))));
+      const fader = $('.vfader', ch);
+      fader.addEventListener('dblclick', () => resetInput(fader));
+      // volume : fader (Base, Analog) ou gros potard (Rotary), toujours synchronisés
+      const vol = $('input[data-vol]', ch);
+      fader.addEventListener('input', () => { vol.value = fader.value; vol._draw && vol._draw(); });
+      vol.addEventListener('input', () => { fader.value = vol.value; });
+    });
+    const x = $('#xfader');
+    x.addEventListener('input', () => { xf.value = Number(x.value); applyCrossfader(); });
+    x.addEventListener('dblclick', () => { x.value = 0; xf.value = 0; applyCrossfader(); });
+    let saved = 'base';
+    try { saved = localStorage.getItem('mixarr-skin') || 'base'; } catch (e) { /* rien */ }
+    applySkin(saved);
+    $('#skin').addEventListener('change', (e) => applySkin(e.target.value));
+    $('#master').addEventListener('input', (e) => { if (master) master.gain.value = Number(e.target.value); });
+  }
+
+  // ===========================================================================
+  // NAS (bouton de l'en-tête) et analyse
+  // ===========================================================================
+
+  let nas = null;
+  let scanPoll = null;
+  let listedOnce = false;
+
+  function renderNas(s) {
+    nas = s;
+    const btn = $('#nas-btn');
+    btn.classList.remove('on', 'off', 'down');
+    if (!s.connected) { btn.classList.add('off'); $('#nas-label').textContent = t('NAS déconnecté'); }
+    else if (s.reachable) { btn.classList.add('on'); $('#nas-label').textContent = t('NAS connecté'); }
+    else { btn.classList.add('down'); $('#nas-label').textContent = t('NAS injoignable'); }
+    const where = t({ tailscale: 'via Tailscale', local: 'réseau local', autre: 'hors réseau' }[s.network?.where] || '');
+    $('#nas-net').textContent = where;
+    btn.title = s.connected
+      ? t(s.reachable ? 'Le dossier musique répond ({dir}). Clic : déconnecter (les morceaux déjà chargés restent jouables).' : 'Le dossier musique ne répond pas ({dir}). Clic : déconnecter (les morceaux déjà chargés restent jouables).', { dir: s.musicDir })
+      : t("Accès au NAS fermé : la bibliothèque et les playlists restent consultables, l'écoute est coupée. Clic : reconnecter.");
+    $('#scan-btn').disabled = !s.connected || s.scan.running;
+    const info = s.scan.running
+      ? (s.scan.phase === 'tags' ? t('Lecture des tags : {done} / {total} (bibliothèque déjà utilisable)', { done: s.scan.done, total: s.scan.total }) : t('Liste des fichiers du NAS…'))
+      : `${t('{n} morceaux', { n: s.tracks })} · ${s.scannedAt ? t('analysé le {date}', { date: new Date(s.scannedAt).toLocaleString(window.I18N.locale, { dateStyle: 'short', timeStyle: 'short' }) }) : t('jamais analysé')}`;
+    $('#scan-info').textContent = info;
+    if (s.scan.running && !scanPoll) scanPoll = setInterval(refreshNas, 1500);
+    if (s.scan.running && s.scan.phase === 'tags' && !listedOnce) { listedOnce = true; library.reload(); } // la liste est prête : on l'affiche sans attendre les tags
+    if (!s.scan.running && scanPoll) { clearInterval(scanPoll); scanPoll = null; listedOnce = false; library.reload(); }
+  }
+
+  async function refreshNas() { try { renderNas(await api('GET', '/api/status')); } catch (e) { /* hors ligne */ } }
+
+  function bindNas() {
+    $('#nas-btn').addEventListener('click', async () => {
+      try { renderNas(await api('POST', '/api/nas', { connected: !(nas && nas.connected) })); } catch (e) { toast(e.message, 'error'); }
+    });
+    $('#scan-btn').addEventListener('click', async () => {
+      try { renderNas(await api('POST', '/api/library/rescan')); toast(t('Analyse du NAS lancée.')); } catch (e) { toast(e.message, 'error'); }
+    });
+    setInterval(refreshNas, 30000);
+  }
+
+  // ===========================================================================
+  // BIBLIOTHÈQUE ET PLAYLISTS
+  // ===========================================================================
+
+  const library = {
+    view: { type: 'all' },    // { type: 'all' } | { type: 'folder', path } | { type: 'playlist', id }
+    rows: [],
+    playlists: [],
+    current: null,            // playlist affichée
+
+    async reload() {
+      await Promise.all([this.loadTree(), this.loadPlaylists()]);
+      await this.show(this.view);
+    },
+
+    // ---------- arborescences repliables (dossiers du NAS, dossiers de playlists Traktor) ----------
+    open: (() => { try { return new Set(JSON.parse(localStorage.getItem('mixarr-open') || '[]')); } catch (e) { return new Set(); } })(),
+    saveOpen() { try { localStorage.setItem('mixarr-open', JSON.stringify([...this.open])); } catch (e) { /* rien */ } },
+
+    /**
+     * Dessine un arbre : nœud = { key, label, count, children: [], select?: () => void, drop?: (paths) => void }.
+     * Clic sur la flèche : plier / déplier ; clic sur le nom : ouvrir (ou plier / déplier un simple dossier).
+     */
+    renderTree(box, roots) {
+      box.innerHTML = '';
+      const walk = (nodes, depth, parent) => {
+        for (const n of nodes) {
+          const hasKids = n.children && n.children.length > 0;
+          const row = document.createElement('div');
+          row.className = `node${n.select ? '' : ' fold'}`;
+          row.dataset.key = n.key;
+          row.style.paddingLeft = `${8 + depth * 13}px`;
+          const isOpen = this.open.has(n.key);
+          row.innerHTML = `<span class="caret${hasKids ? '' : ' none'}${isOpen ? ' open' : ''}">▸</span><span class="lbl">${esc(n.label)}</span>${n.count ? `<span class="cnt">${n.count}</span>` : ''}`;
+          const kids = document.createElement('div');
+          kids.className = 'kids';
+          kids.hidden = !isOpen;
+          const toggle = () => {
+            const o = kids.hidden;
+            kids.hidden = !o;
+            $('.caret', row).classList.toggle('open', o);
+            if (o) this.open.add(n.key); else this.open.delete(n.key);
+            this.saveOpen();
+          };
+          $('.caret', row).addEventListener('click', (ev) => { if (hasKids) { ev.stopPropagation(); toggle(); } });
+          row.addEventListener('click', () => { if (n.select) n.select(); else if (hasKids) toggle(); });
+          if (n.drop) {
+            row.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-track')) { ev.preventDefault(); row.classList.add('drop'); } });
+            row.addEventListener('dragleave', () => row.classList.remove('drop'));
+            row.addEventListener('drop', (ev) => {
+              row.classList.remove('drop');
+              const data = ev.dataTransfer.getData('application/x-mixarr-track');
+              if (data) { ev.preventDefault(); n.drop([JSON.parse(data).path]); }
+            });
+          }
+          parent.appendChild(row);
+          if (hasKids) { parent.appendChild(kids); walk(n.children, depth + 1, kids); }
+        }
+      };
+      walk(roots, 0, box);
+    },
+
+    /** Ouvre les dossiers parents du nœud choisi (pour qu'il soit visible). */
+    revealSel(key) {
+      const row = $(`.node[data-key="${CSS.escape(key)}"]`);
+      let el = row && row.parentElement;
+      while (el && el.classList.contains('kids')) {
+        if (el.hidden) { el.hidden = false; const head = el.previousElementSibling; if (head) { $('.caret', head).classList.add('open'); this.open.add(head.dataset.key); } }
+        el = el.parentElement;
+      }
+      this.saveOpen();
+    },
+
+    async loadTree() {
+      const folders = await api('GET', '/api/library/folders');
+      const byPath = new Map();
+      const roots = [
+        { key: 'all', label: t('Tout'), count: nas ? nas.tracks : 0, children: [], select: () => this.show({ type: 'all' }) },
+        { key: 'recent', label: t('Ajouts récents (30 j)'), children: [], select: () => this.show({ type: 'recent' }) }
+      ];
+      for (const f of folders) {
+        const node = { key: `folder:${f.path}`, label: f.path.split('/').pop(), count: f.count, children: [], select: () => this.show({ type: 'folder', path: f.path }) };
+        byPath.set(f.path, node);
+        const parent = byPath.get(f.path.split('/').slice(0, -1).join('/'));
+        (parent ? parent.children : roots).push(node);
+      }
+      this.renderTree($('#tree'), roots);
+      this.markSel();
+    },
+
+    async loadPlaylists() {
+      this.playlists = await api('GET', '/api/playlists');
+      const mine = this.playlists.filter((p) => p.source === 'mixarr');
+      const trak = this.playlists.filter((p) => p.source === 'traktor');
+      const leaf = (p, editable) => ({
+        key: `pl:${p.id}`, label: p.name, count: p.count, children: [],
+        select: () => this.show({ type: 'playlist', id: p.id }),
+        drop: editable ? (paths) => this.addTo(p.id, paths) : null
+      });
+      if (mine.length) this.renderTree($('#pl-mine'), mine.map((p) => leaf(p, true)));
+      else $('#pl-mine').innerHTML = `<div class="node fold muted">${esc(t('Aucune playlist : ＋ pour en créer une'))}</div>`;
+      // Traktor : « Traktor / NEXT / Sets » -> dossiers imbriqués
+      if (trak.length) {
+        const roots = [];
+        const folders = new Map();
+        const folderNode = (parts) => {
+          const key = `tk:${parts.join('/')}`;
+          if (folders.has(key)) return folders.get(key);
+          const n = { key, label: parts[parts.length - 1], children: [] };
+          folders.set(key, n);
+          (parts.length > 1 ? folderNode(parts.slice(0, -1)).children : roots).push(n);
+          return n;
+        };
+        for (const p of trak) {
+          const parts = p.folder.split(' / ').map((x) => x.trim()).filter(Boolean).filter((x, i) => !(i === 0 && x === 'Traktor'));
+          (parts.length ? folderNode(parts).children : roots).push(leaf(p, false));
+        }
+        for (const f of folders.values()) f.count = f.children.length;
+        this.renderTree($('#pl-traktor'), roots);
+      } else $('#pl-traktor').innerHTML = `<div class="node fold muted">${esc(t('Importe ta collection.nml'))}</div>`;
+      const sel = $('#target-pl');
+      const keep = sel.value;
+      sel.innerHTML = '<option value="">—</option>' + mine.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+      if (mine.some((p) => p.id === keep)) sel.value = keep;
+      this.markSel();
+    },
+
+    markSel() {
+      const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : `pl:${this.view.id}`;
+      $$('.node[data-key]').forEach((n) => n.classList.toggle('sel', n.dataset.key === key));
+      this.revealSel(key);
+    },
+
+    async show(view) {
+      this.view = view;
+      this.markSel();
+      const q = $('#search').value.trim();
+      const actions = $('#list-actions');
+      actions.innerHTML = '';
+      this.current = null;
+      if (view.type === 'playlist') {
+        const p = await api('GET', `/api/playlists/${view.id}`);
+        this.current = p;
+        $('#list-title').textContent = p.source === 'traktor' ? t('Traktor · {name}', { name: p.name }) : p.name;
+        const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+        this.rows = p.items.map((it, i) => ({ ...it, index: i })).filter((it) => !words.length || words.every((w) => `${it.artist} ${it.title} ${it.path}`.toLowerCase().includes(w)));
+        if (p.source === 'traktor') {
+          actions.appendChild(button(t('Copier dans mes playlists'), async () => {
+            const c = await api('POST', `/api/playlists/${p.id}/duplicate`, {});
+            toast(t('Copie créée : {name}', { name: c.name })); await this.loadPlaylists(); this.show({ type: 'playlist', id: c.id });
+          }));
+        } else {
+          actions.appendChild(button(t('Renommer'), async () => {
+            const name = prompt(t('Nouveau nom :'), p.name); if (!name) return;
+            await api('PUT', `/api/playlists/${p.id}`, { name }); await this.loadPlaylists(); this.show(this.view);
+          }));
+          actions.appendChild(button(t('Supprimer'), async () => {
+            if (!confirm(t('Supprimer la playlist « {name} » ? (les morceaux ne sont pas touchés)', { name: p.name }))) return;
+            await api('DELETE', `/api/playlists/${p.id}`); await this.loadPlaylists(); this.show({ type: 'all' });
+          }));
+        }
+      } else {
+        $('#list-title').textContent = view.type === 'folder' ? view.path : view.type === 'recent' ? t('Ajouts récents (30 jours)') : t('Toute la bibliothèque');
+        const params = new URLSearchParams({ q });
+        if (view.type === 'folder') params.set('folder', view.path);
+        if (view.type === 'recent') params.set('recent', '30');
+        this.rows = await api('GET', `/api/library?${params}`);
+      }
+      this.renderRows();
+    },
+
+    sort: { col: 'default', dir: 1 },
+    bpmRange: { min: null, max: null },
+
+    /** Lignes affichées : filtre de BPM puis tri choisi (en-têtes de colonnes). */
+    visibleRows() {
+      const { min, max } = this.bpmRange;
+      let rows = this.rows.map((t, i) => (t.index === undefined ? { ...t, index: i } : t));
+      if (min || max) rows = rows.filter((t) => t.bpm && (!min || t.bpm >= min) && (!max || t.bpm <= max));
+      const { col, dir } = this.sort;
+      if (col !== 'default') {
+        const val = (t) => {
+          if (col === 'key') return keySortValue(t.key);
+          if (col === 'index' || col === 'bpm' || col === 'duration' || col === 'cueCount') return Number(t[col]) || (col === 'index' ? 0 : -1);
+          return String(t[col] || '').toLowerCase();
+        };
+        const missing = (v) => v === -1 || v === 99 || v === '';
+        rows.sort((a, b) => {
+          const x = val(a); const y = val(b);
+          if (missing(x) !== missing(y)) return missing(x) ? 1 : -1; // sans BPM / tonalité : toujours en bas
+          return (x < y ? -1 : x > y ? 1 : 0) * dir;
+        });
+      }
+      return rows;
+    },
+
+    renderSortMarks() {
+      $$('#tracks th[data-sort]').forEach((th) => {
+        th.classList.toggle('sorted', th.dataset.sort === this.sort.col);
+        th.dataset.dir = th.dataset.sort === this.sort.col ? (this.sort.dir > 0 ? '▲' : '▼') : '';
+      });
+      $('#key-head').textContent = t({ musical: 'Ton.', camelot: 'Camelot', open: 'Open Key' }[keyMode]);
+    },
+
+    renderRows() {
+      const body = $('#tracks tbody');
+      body.innerHTML = '';
+      this.renderSortMarks();
+      const editable = this.current && this.current.source === 'mixarr';
+      const reorderable = editable && !$('#search').value.trim() && (this.sort.col === 'default' || (this.sort.col === 'index' && this.sort.dir > 0)) && !this.bpmRange.min && !this.bpmRange.max;
+      const frag = document.createDocumentFragment();
+      const rows = this.visibleRows();
+      rows.forEach((t, i) => {
+        const tr = document.createElement('tr');
+        if (t.missing) tr.className = 'missing';
+        tr.draggable = !t.missing;
+        tr.dataset.path = t.path;
+        const ref = refDeck && refDeck.track && refDeck.track.path !== t.path ? refDeck : null;
+        const kc = ref ? keyCompat(t.key, ref.track.key) : 0;
+        const bc = ref ? bpmCompat(t.bpm, ref.bpm ? ref.bpm * ref.rate : null) : 0;
+        if (kc && bc) tr.classList.add('match');
+        if (refDeck && refDeck.track && refDeck.track.path === t.path) tr.classList.add(`loaded-${refDeck.id.toLowerCase()}`);
+        tr.innerHTML = `<td class="n">${(this.current ? t.index : i) + 1}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
+          + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
+          + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
+          + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
+          + `${editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`;
+        tr.addEventListener('dblclick', () => { if (!t.missing) (decks.A.track && !decks.B.track ? decks.B : decks.A.playing && !decks.B.playing ? decks.B : decks.A).load(t); });
+        tr.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('application/x-mixarr-track', JSON.stringify(t));
+          ev.dataTransfer.setData('application/x-mixarr-index', String(t.index));
+          ev.dataTransfer.effectAllowed = 'copyMove';
+          tr.classList.add('dragging');
+        });
+        tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
+        if (reorderable) { // réordonner la playlist en glissant (ordre de la playlist, sans filtre)
+          tr.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-index')) { ev.preventDefault(); tr.classList.add('drop-above'); } });
+          tr.addEventListener('dragleave', () => tr.classList.remove('drop-above'));
+          tr.addEventListener('drop', (ev) => {
+            tr.classList.remove('drop-above');
+            const from = Number(ev.dataTransfer.getData('application/x-mixarr-index'));
+            const to = t.index;
+            if (!Number.isInteger(from) || from === to) return;
+            ev.preventDefault();
+            const tracks = this.current.tracks.slice();
+            const [moved] = tracks.splice(from, 1);
+            tracks.splice(from < to ? to - 1 : to, 0, moved);
+            this.savePlaylist(tracks);
+          });
+        }
+        tr.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => decks[b.dataset.l].load(t)));
+        const pvb = tr.querySelector('[data-pv]');
+        if (pvb) pvb.addEventListener('click', () => preview.toggle(t));
+        const x = tr.querySelector('[data-x]');
+        if (x) x.addEventListener('click', () => { const tracks = this.current.tracks.slice(); tracks.splice(t.index, 1); this.savePlaylist(tracks); });
+        const add = tr.querySelector('[data-add]');
+        if (add) add.addEventListener('click', () => {
+          const id = $('#target-pl').value;
+          if (!id) { toast(window.I18N.t("Choisis d'abord une playlist dans « Ajouter à » (ou glisse le morceau sur une playlist à gauche).")); return; }
+          this.addTo(id, [t.path]);
+        });
+        frag.appendChild(tr);
+      });
+      body.appendChild(frag);
+      $('#empty').textContent = rows.length ? '' : t(this.rows.length ? 'Aucun morceau dans cette plage de BPM.' : (this.view.type === 'playlist' ? 'Playlist vide : glisse des morceaux dessus depuis la bibliothèque.' : (nas && nas.tracks ? 'Aucun morceau ne correspond.' : 'Bibliothèque vide : clique sur « Analyser le NAS ».')));
+    },
+
+    async savePlaylist(tracks) {
+      try { await api('PUT', `/api/playlists/${this.current.id}`, { tracks }); await this.loadPlaylists(); await this.show(this.view); } catch (e) { toast(e.message, 'error'); }
+    },
+
+    async addTo(id, paths) {
+      try {
+        const p = await api('GET', `/api/playlists/${id}`);
+        const tracks = p.tracks.concat(paths.filter((x) => !p.tracks.includes(x)));
+        await api('PUT', `/api/playlists/${id}`, { tracks });
+        toast(t('Ajouté à « {name} »', { name: p.name }));
+        await this.loadPlaylists();
+        if (this.view.type === 'playlist' && this.view.id === id) await this.show(this.view);
+      } catch (e) { toast(e.message, 'error'); }
+    },
+
+    updateCount(path, n) {
+      const row = this.rows.find((r) => r.path === path);
+      if (row) { row.cueCount = n; const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(8)`); if (tr) tr.textContent = n || ''; }
+    }
+  };
+
+  // ===========================================================================
+  // PRÉ-ÉCOUTE (dans la liste, sans passer par les decks ni le mixeur)
+  // ===========================================================================
+  const preview = {
+    el: null, path: null,
+    toggle(t) {
+      if (this.path === t.path) { this.stop(); return; }
+      this.stop();
+      if (!this.el) { this.el = new Audio(); this.el.preload = 'auto'; this.el.addEventListener('ended', () => this.stop()); }
+      this.path = t.path;
+      this.el.src = `/api/audio?path=${encodeURIComponent(t.path)}`;
+      this.el.volume = 0.85;
+      const seekable = !/\.aiff?$/i.test(t.path); // l'AIFF est converti à la volée : pas de saut possible
+      this.el.onloadedmetadata = () => { if (seekable && Number.isFinite(this.el.duration)) this.el.currentTime = this.el.duration * 0.33; };
+      this.el.play().catch((e) => { toast(window.I18N.t('Pré-écoute impossible : {msg}', { msg: e.message }), 'error'); this.stop(); });
+      library.renderRows();
+    },
+    stop() {
+      if (this.el) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
+      const had = this.path; this.path = null;
+      if (had) library.renderRows();
+    }
+  };
+
+  function button(label, fn) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.textContent = label;
+    b.addEventListener('click', () => Promise.resolve(fn()).catch((e) => toast(e.message, 'error')));
+    return b;
+  }
+
+  // ===========================================================================
+  // FENÊTRES : réglages, import Traktor, export Rekordbox
+  // ===========================================================================
+
+  function modal(html, onReady) {
+    const dlg = $('#modal');
+    $('#modal-body').innerHTML = html;
+    if (onReady) onReady($('#modal-body'));
+    dlg.showModal();
+    return dlg;
+  }
+
+  async function openSettings() {
+    const s = await api('GET', '/api/settings');
+    modal(`<h2>${t('Réglages')}</h2>
+      <label>${t('Chemin du dossier musique sur ton Mac (pour Rekordbox)')}
+        <input type="text" id="s-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
+        <span class="small muted">${t("Le dossier qui correspond au dossier musique du NAS quand il est monté sur le Mac (Finder > Aller > Se connecter au serveur), ou ton SSD s'il a la même arborescence. Les morceaux du rekordbox.xml pointeront là.")}</span>
+      </label>
+      <label>${t('Décalage des cues pour les MP3 (ms)')}
+        <input type="number" id="s-off" value="${Number(s.mp3OffsetMs) || 0}" step="1" min="-500" max="500">
+        <span class="small muted">${t("Traktor et Rekordbox ne comptent pas le début d'un MP3 tout à fait pareil. Laisse 0 tant qu'on n'a pas calibré sur tes morceaux. Les WAV et AIFF ne sont pas concernés.")}</span>
+      </label>
+      <label>${t('Langue')}
+        <select id="s-lang">${Object.entries(window.I18N.LANGS).map(([k, v]) => `<option value="${k}"${k === window.I18N.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
+      </label>
+      <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="s-save" value="ok">${t('Enregistrer')}</button></div>`, (root) => {
+      $('#s-save', root).addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try { await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value) }); $('#modal').close(); toast(t('Réglages enregistrés.')); if ($('#s-lang', root).value !== window.I18N.lang) window.I18N.setLang($('#s-lang', root).value); } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+  }
+
+  async function importTraktor(file) {
+    if (!file) return;
+    toast(t('Import de {file}…', { file: file.name }));
+    try {
+      const text = await file.text();
+      const res = await fetch('/api/import/traktor', { method: 'POST', headers: { 'Content-Type': 'text/xml', 'X-Lang': window.I18N.lang }, body: text });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || t('Erreur {status}', { status: res.status }));
+      modal(`<h2>${t('Import Traktor terminé')}</h2>
+        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans mixarr', { n: r.keptEdited })}` : ''}.</p>
+        ${r.unmatchedCount ? `<p class="muted">${t('{n} morceaux de la collection Traktor introuvables sur le NAS', { n: r.unmatchedCount })}${r.unmatchedCount > r.unmatched.length ? ` ${t('({n} premiers)', { n: r.unmatched.length })}` : ''} :</p><ul>${r.unmatched.map((u) => `<li>${esc(u.artist ? `${u.artist} - ${u.title}` : u.file)}</li>`).join('')}</ul>` : `<p>${t('Tous les morceaux ont été retrouvés.')}</p>`}
+        <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
+      await library.reload();
+    } catch (e) { toast(t('Import impossible : {msg}', { msg: e.message }), 'error'); }
+    $('#nml-input').value = '';
+  }
+
+  async function openExport() {
+    const s = await api('GET', '/api/settings');
+    const lists = library.playlists;
+    if (!lists.length) { toast(t('Aucune playlist à exporter.')); return; }
+    const cur = library.view.type === 'playlist' ? library.view.id : null;
+    modal(`<h2>${t('Exporter vers Rekordbox')}</h2>
+      <label>${t('Chemin du dossier musique sur ton Mac')}
+        <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
+      </label>
+      <div class="small muted">${t('Playlists à exporter :')}</div>
+      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'mixarr') ? 'checked' : ''}> ${esc(p.source === 'traktor' ? t('Traktor · {name}', { name: p.name }) : p.name)} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
+      <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
+      <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="e-go">${t('Télécharger rekordbox.xml')}</button></div>`, (root) => {
+      $('#e-go', root).addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try {
+          const mac = $('#e-mac', root).value.trim();
+          if (mac !== s.macPrefix) await api('PUT', '/api/settings', { macPrefix: mac });
+          const ids = $$('.checks input:checked', root).map((i) => i.value);
+          if (!ids.length) throw new Error(t('Coche au moins une playlist.'));
+          const res = await fetch('/api/export/rekordbox', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lang': window.I18N.lang }, body: JSON.stringify({ ids }) });
+          if (!res.ok) throw new Error((await res.json()).error || `Erreur ${res.status}`);
+          const blob = await res.blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = 'rekordbox.xml'; a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+          $('#modal').close();
+          const missing = Number(res.headers.get('X-Mixarr-Missing')) || 0;
+          toast(`${t('rekordbox.xml : {n} morceaux', { n: res.headers.get('X-Mixarr-Tracks') })}${missing ? `, ${t('{n} absents du NAS ignorés', { n: missing })}` : ''}.`);
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+  }
+
+  // ===========================================================================
+  // DÉMARRAGE
+  // ===========================================================================
+
+  const decks = { A: new Deck('A'), B: new Deck('B') };
+  window.I18N.apply(document.body); // textes fixes de la page dans la langue choisie
+  { const other = window.I18N.lang === 'fr' ? 'en' : 'fr'; const lb = $('#lang-btn'); lb.textContent = other.toUpperCase(); lb.addEventListener('click', () => window.I18N.setLang(other)); }
+
+  function bindGlobal() {
+    $('#settings-btn').addEventListener('click', () => openSettings().catch((e) => toast(e.message, 'error')));
+    $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
+    $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
+    $('#new-pl').addEventListener('click', async () => {
+      const name = prompt(window.I18N.t('Nom de la nouvelle playlist :')); if (!name) return;
+      try { const p = await api('POST', '/api/playlists', { name }); await library.loadPlaylists(); $('#target-pl').value = p.id; library.show({ type: 'playlist', id: p.id }); } catch (e) { toast(e.message, 'error'); }
+    });
+    // barre de gauche : sections repliables, « tout replier »
+    let closedSecs = [];
+    try { closedSecs = JSON.parse(localStorage.getItem('mixarr-secs') || '[]'); } catch (e) { /* rien */ }
+    $$('.side-head[data-sec]').forEach((h) => {
+      const box = $(`#${h.dataset.sec}`);
+      const set = (closed) => { box.hidden = closed; $('.sec .caret', h).classList.toggle('open', !closed); };
+      set(closedSecs.includes(h.dataset.sec));
+      $('.sec', h).addEventListener('click', () => {
+        const closed = !box.hidden; set(closed);
+        closedSecs = closed ? [...new Set([...closedSecs, h.dataset.sec])] : closedSecs.filter((x) => x !== h.dataset.sec);
+        try { localStorage.setItem('mixarr-secs', JSON.stringify(closedSecs)); } catch (e) { /* rien */ }
+      });
+    });
+    $$('.fold-all').forEach((b) => b.addEventListener('click', () => {
+      const box = $(`#${b.dataset.target}`);
+      $$('.kids', box).forEach((k) => { k.hidden = true; });
+      $$('.caret', box).forEach((c) => c.classList.remove('open'));
+      $$('.node[data-key]', box).forEach((r) => library.open.delete(r.dataset.key));
+      library.saveOpen();
+    }));
+    // tri par colonne (clic : croissant / décroissant / ordre d'origine) ; Maj+clic sur « Ton. » : notation
+    $$('#tracks th[data-sort]').forEach((th) => th.addEventListener('click', (ev) => {
+      if (th.dataset.sort === 'key' && ev.shiftKey) {
+        keyMode = { musical: 'camelot', camelot: 'open', open: 'musical' }[keyMode];
+        try { localStorage.setItem('mixarr-key', keyMode); } catch (e) { /* rien */ }
+        decks.A.renderInfo(); decks.B.renderInfo();
+        library.renderRows(); return;
+      }
+      const s = library.sort;
+      if (s.col !== th.dataset.sort) library.sort = { col: th.dataset.sort, dir: th.dataset.sort === 'bpm' || th.dataset.sort === 'key' || th.dataset.sort === 'index' || th.dataset.sort === 'artist' || th.dataset.sort === 'title' || th.dataset.sort === 'format' ? 1 : -1 };
+      else if (s.dir === (library.sort.col === 'cueCount' || library.sort.col === 'duration' ? -1 : 1)) library.sort = { col: s.col, dir: -s.dir };
+      else library.sort = { col: 'default', dir: 1 };
+      library.renderRows();
+    }));
+    // filtre de BPM
+    const readRange = () => {
+      const mn = Number($('#bpm-min').value) || null; const mx = Number($('#bpm-max').value) || null;
+      library.bpmRange = { min: mn, max: mx };
+      library.renderRows();
+    };
+    $('#bpm-min').addEventListener('input', readRange);
+    $('#bpm-max').addEventListener('input', readRange);
+    const near = (d) => {
+      if (!d.bpm) { toast(window.I18N.t('Deck {id} : pas de BPM.', { id: d.id })); return; }
+      const bpm = d.bpm * d.rate;
+      $('#bpm-min').value = (bpm * 0.97).toFixed(1); $('#bpm-max').value = (bpm * 1.03).toFixed(1);
+      readRange();
+    };
+    $('#bpm-near-a').addEventListener('click', () => near(decks.A));
+    $('#bpm-near-b').addEventListener('click', () => near(decks.B));
+    $('#bpm-clear').addEventListener('click', () => { $('#bpm-min').value = ''; $('#bpm-max').value = ''; readRange(); });
+    let searchTimer = null;
+    $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => library.show(library.view), 200); });
+    // raccourcis : Q / W lecture A / B, A / S cue A / B (hors champs de saisie)
+    document.addEventListener('keydown', (ev) => {
+      if (ev.target.closest('input, select, textarea') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const k = ev.key.toLowerCase();
+      if (k === 'q') decks.A.toggle(); else if (k === 'w') decks.B.toggle();
+      else if (k === 'a') decks.A.cue(); else if (k === 's') decks.B.cue();
+      else return;
+      ev.preventDefault();
+    });
+    document.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { once: false });
+  }
+
+  bindMixer();
+  bindNas();
+  bindGlobal();
+  refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
+  requestAnimationFrame(frame);
+  window.mixarr = { decks, library }; // pour le débogage dans la console
+})();

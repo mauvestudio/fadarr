@@ -1,0 +1,33 @@
+{
+  "name": "mixarr",
+  "version": "0.2.0",
+  "description": "Prepare DJ sets in your browser: two decks streaming from your NAS, playlists, hot cues and loops, Traktor import, Rekordbox export.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "express": "4.21.2",
+    "fast-xml-parser": "4.5.1",
+    "music-metadata": "7.14.0"
+  },
+  "keywords": [
+    "dj",
+    "traktor",
+    "rekordbox",
+    "nml",
+    "playlist",
+    "cue",
+    "self-hosted",
+    "unraid"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mauvestudio/mixarr.git"
+  }
+}
