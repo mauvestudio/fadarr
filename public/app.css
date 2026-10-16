@@ -58,8 +58,11 @@ button, input, select { font: inherit; color: inherit; }
 .deck-meta { flex: 1; min-width: 0; }
 .d-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .d-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.deck-nums { text-align: right; flex: none; }
-.d-bpm { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; }
+.deck-nums { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0; line-height: 1.05; }
+.d-bpm { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 24px; letter-spacing: .5px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 0 4px; cursor: pointer; }
+.d-bpm:hover { border-color: var(--line); background: var(--panel2); }
+.d-bpm-lab { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; margin-top: -2px; }
+.d-bpm-edit { width: 78px; font: 800 20px/1 system-ui; font-variant-numeric: tabular-nums; text-align: right; background: var(--panel2); border: 1px solid var(--c); border-radius: 6px; color: var(--text); padding: 1px 4px; }
 canvas { width: 100%; display: block; border-radius: 6px; background: #0b0c0e; cursor: pointer; }
 .deck-time { display: flex; gap: 12px; align-items: baseline; font-variant-numeric: tabular-nums; }
 .d-pos { font-size: 16px; font-weight: 600; }
@@ -140,6 +143,10 @@ dialog::backdrop { background: rgb(0 0 0 / .55); }
 #toasts { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 50; }
 .toast { background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--acc); border-radius: 8px; padding: 8px 12px; max-width: 360px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); }
 .toast.error { border-left-color: var(--bad); }
+.modal-body ul.report { color: var(--text); list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 6px; }
+.modal-body ul.report li { border-left: 3px solid var(--warn); background: var(--panel2); border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.modal-body ul.report li.bad { border-left-color: var(--bad); }
+.modal-body .ok-line { color: var(--ok); font-weight: 600; }
 
 @media (max-width: 1100px) {
   .decks { grid-template-columns: 1fr 1fr; }
@@ -362,6 +369,15 @@ canvas.wave-zoom { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .04); }
 .phase i { position: absolute; top: 0; bottom: 0; width: 18%; margin-left: -9%; left: 50%; border-radius: 3px; background: var(--c); }
 .phase.on { opacity: 1; }
 .phase.locked i { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+
+/* SYNC allumé (bleu façon Traktor) quand les tempos sont calés */
+.pitch-info .d-sync.on { background: #2b7fff; color: #fff; border-color: #2b7fff; box-shadow: 0 0 12px -2px #2b7fff; }
+
+/* Replier la zone des decks et le panneau de gauche */
+body.no-decks .decks { display: none; }
+body.no-side .browser { grid-template-columns: 1fr; }
+body.no-side .side { display: none; }
+#toggle-decks { line-height: 1; }
 
 @media (prefers-reduced-motion: reduce) { .pad, .deck, .phase { transition: none; } }
 

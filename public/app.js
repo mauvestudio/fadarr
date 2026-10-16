@@ -114,6 +114,7 @@
       this.loopIn = null;
       this.loading = 0;
       this.quant = true; // quantize activé par défaut, comme dans Traktor
+      this.synced = false; // SYNC : tempo calé sur l'autre deck
       this.bindUi();
       this.renderPads();
       this.renderMem();
@@ -169,6 +170,7 @@
       this.playing = false;
       this.track = track;
       this.buffer = null; this.peaks = null; this.offset = 0; this.mainCue = 0; this.loop = null; this.loopIn = null;
+      this.synced = false; this.renderSync();
       this.cues = [];
       this.status(t('Chargement…'));
       this.renderInfo();
@@ -242,14 +244,59 @@
       else { this.mainCue = this.position; }
     }
 
-    setRate(pct) {
+    setRate(pct, fromSync) {
       const p = this.position;
       this.rate = 1 + pct / 100;
       if (this.source) { this.source.playbackRate.value = this.rate; this.offset = p; this.startedAt = ctx.currentTime; }
       $('.d-pitchval', this.el).textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)} %`;
+      if (!fromSync && this.synced) { this.synced = false; this.renderSync(); } // réglage manuel : on relâche le SYNC
       this.renderInfo();
+      updateSyncLights(); // l'autre deck peut ne plus être calé
       clearTimeout(this.compatTimer);
       if (refDeck === this) this.compatTimer = setTimeout(() => library.renderRows(), 250);
+    }
+
+    renderSync() { $('.d-sync', this.el).classList.toggle('on', this.synced); }
+
+    /** Pose / corrige le BPM du morceau à la main (clic sur l'affichage du BPM). */
+    editBpm() {
+      if (!this.track) { toast(t('Charge un morceau pour régler son BPM.')); return; }
+      if (this._editingBpm) return;
+      this._editingBpm = true;
+      const box = $('.d-bpm', this.el);
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.className = 'd-bpm-edit'; inp.step = '0.01'; inp.min = '40'; inp.max = '250';
+      inp.value = this.bpm ? Number(this.bpm).toFixed(2) : '';
+      inp.title = t('BPM du morceau (Entrée pour valider, Échap pour annuler)');
+      box.replaceWith(inp); inp.focus(); inp.select();
+      const restore = () => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'd-bpm'; b.title = t('BPM — clic pour régler');
+        inp.replaceWith(b);
+        b.addEventListener('click', () => this.editBpm());
+        this._editingBpm = false;
+        this.renderInfo();
+      };
+      let done = false;
+      const commit = async () => {
+        if (done) return; done = true;
+        const v = Number(inp.value);
+        const path = this.track && this.track.path;
+        restore();
+        if (path && Number.isFinite(v) && v >= 40 && v <= 250) {
+          try {
+            await api('PUT', '/api/track/meta', { path, bpm: v });
+            if (this.track && this.track.path === path) { this.track.bpm = Math.round(v * 100) / 100; this.renderInfo(); }
+            library.updateBpm(path, Math.round(v * 100) / 100);
+            if (refDeck === this) library.renderRows();
+          } catch (e) { toast(t('BPM non enregistré : {msg}', { msg: e.message }), 'error'); }
+        }
+      };
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); done = true; restore(); }
+      });
+      inp.addEventListener('blur', commit);
     }
 
     /** Quantize (bouton Q) : cale une position sur le temps le plus proche de la grille, si BPM et grille sont connus. */
@@ -345,7 +392,8 @@
       const t = this.track;
       $('.d-title', this.el).textContent = t ? (t.title || t.path) : window.I18N.t('Glisse un morceau ici');
       $('.d-artist', this.el).textContent = t ? t.artist : '';
-      $('.d-bpm', this.el).textContent = this.bpm ? (this.bpm * this.rate).toFixed(2) : '—';
+      const bpmEl = $('.d-bpm', this.el); // absent pendant l'édition
+      if (bpmEl) bpmEl.textContent = this.bpm ? (this.bpm * this.rate).toFixed(2) : '—';
       $('.d-key', this.el).textContent = t ? [showKey(t.key), t.format].filter(Boolean).join(' · ') : '';
     }
 
@@ -401,6 +449,7 @@
       $('[data-a="play"]', this.el).addEventListener('click', () => this.toggle());
       $('[data-a="cue"]', this.el).addEventListener('click', () => this.cue());
       $$('.lbtn', this.el).forEach((b) => b.addEventListener('click', () => this.loopAction(b.dataset.a)));
+      $('.d-bpm', this.el).addEventListener('click', () => this.editBpm());
       const pitch = $('.d-pitch', this.el);
       pitch.addEventListener('input', () => this.setRate(Number(pitch.value)));
       pitch.addEventListener('dblclick', () => { pitch.value = 0; this.setRate(0); });
@@ -411,11 +460,13 @@
       });
       $('.d-sync', this.el).addEventListener('click', () => {
         const other = this.id === 'A' ? decks.B : decks.A;
+        if (this.synced) { this.synced = false; this.renderSync(); return; } // deuxième clic : relâcher (garde le tempo actuel)
         if (!this.bpm || !other.bpm) { toast(t("BPM inconnu sur l'un des deux decks.")); return; }
         let pct = ((other.bpm * other.rate) / this.bpm - 1) * 100;
         if (Math.abs(pct) > this.range) { this.range = 50; pitch.min = -50; pitch.max = 50; $('.d-range', this.el).textContent = '±50'; }
         pct = Math.max(-50, Math.min(50, pct));
-        pitch.value = pct; this.setRate(pct);
+        pitch.value = pct; this.setRate(pct, true);
+        this.synced = true; this.renderSync();
       });
       // clic sur les formes d'onde : se placer
       const over = $('.wave-over', this.el);
@@ -630,6 +681,17 @@
     drawDeck(decks.A); drawDeck(decks.B);
     for (const d of [decks.A, decks.B]) d.el.classList.toggle('playing', d.playing);
     requestAnimationFrame(frame);
+  }
+
+  /** Éteint le SYNC d'un deck dès que son tempo effectif ne colle plus à celui de l'autre. */
+  function updateSyncLights() {
+    for (const d of [decks.A, decks.B]) {
+      if (!d.synced) continue;
+      const o = d.id === 'A' ? decks.B : decks.A;
+      const a = d.bpm ? d.bpm * d.rate : 0;
+      const b = o.bpm ? o.bpm * o.rate : 0;
+      if (!a || !b || Math.abs(a / b - 1) > 0.001) { d.synced = false; d.renderSync(); }
+    }
   }
 
   // ===========================================================================
@@ -1065,6 +1127,11 @@
     updateCount(path, n) {
       const row = this.rows.find((r) => r.path === path);
       if (row) { row.cueCount = n; const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(8)`); if (tr) tr.textContent = n || ''; }
+    },
+
+    updateBpm(path, bpm) {
+      const row = this.rows.find((r) => r.path === path);
+      if (row) row.bpm = bpm;
     }
   };
 
@@ -1177,8 +1244,20 @@
           a.href = URL.createObjectURL(blob); a.download = 'rekordbox.xml'; a.click();
           setTimeout(() => URL.revokeObjectURL(a.href), 5000);
           $('#modal').close();
+          const n = Number(res.headers.get('X-Mixarr-Tracks')) || 0;
           const missing = Number(res.headers.get('X-Mixarr-Missing')) || 0;
-          toast(`${t('rekordbox.xml : {n} morceaux', { n: res.headers.get('X-Mixarr-Tracks') })}${missing ? `, ${t('{n} absents du NAS ignorés', { n: missing })}` : ''}.`);
+          const noBpm = Number(res.headers.get('X-Mixarr-Nobpm')) || 0;
+          const noGrid = Number(res.headers.get('X-Mixarr-Nogrid')) || 0;
+          const cues = Number(res.headers.get('X-Mixarr-Cues')) || 0;
+          const warn = [];
+          if (noBpm) warn.push(`<li class="bad">${t('{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans mixarr et clique sur le BPM pour le poser.', { n: noBpm })}</li>`);
+          if (noGrid) warn.push(`<li>${t("{n} morceaux ont un BPM mais pas de grille précise : la grille est posée au premier temps connu. Vérifie-les dans Rekordbox (double-clic sur la grille pour recaler si besoin).", { n: noGrid })}</li>`);
+          if (missing) warn.push(`<li>${t('{n} morceaux absents du NAS ont été ignorés.', { n: missing })}</li>`);
+          modal(`<h2>${t('rekordbox.xml téléchargé')}</h2>
+            <p>${t('{n} morceaux exportés — {g} avec grille de tempo, {c} avec cues/loops.', { n: `<b>${n}</b>`, g: n - noBpm, c: cues })}</p>
+            ${warn.length ? `<ul class="report">${warn.join('')}</ul>` : `<p class="ok-line">${t('Tous les morceaux ont un BPM et une grille. ✔')}</p>`}
+            <div class="small muted">${t('Pour être sûr que ça passe sur les platines : 1) Rekordbox > Préférences > Avancé > rekordbox xml : choisis ce fichier ; 2) clic droit sur la playlist > Importer ; 3) vérifie que grille et cues apparaissent sur le morceau ; 4) branche ta clé USB, Rekordbox > Exporter vers le périphérique ; 5) relis la clé sur une CDJ (ou en mode Export). Garde le même rekordbox.xml et remplace-le à chaque export.')}</div>
+            <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
         } catch (e) { toast(e.message, 'error'); }
       });
     });
@@ -1196,6 +1275,17 @@
     $('#settings-btn').addEventListener('click', () => openSettings().catch((e) => toast(e.message, 'error')));
     $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
     $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
+    // replier la zone des decks (plus de place pour la bibliothèque) et le panneau de gauche
+    const deckBtn = $('#toggle-decks');
+    const setDecks = (hidden) => { document.body.classList.toggle('no-decks', hidden); deckBtn.textContent = hidden ? '▼' : '▲'; deckBtn.title = window.I18N.t(hidden ? 'Afficher les decks' : 'Réduire les decks'); };
+    let decksHidden = false; try { decksHidden = localStorage.getItem('mixarr-decks') === '0'; } catch (e) { /* rien */ }
+    setDecks(decksHidden);
+    deckBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-decks'); setDecks(h); try { localStorage.setItem('mixarr-decks', h ? '0' : '1'); } catch (e) { /* rien */ } });
+    const sideBtn = $('#toggle-side');
+    const setSide = (hidden) => { document.body.classList.toggle('no-side', hidden); sideBtn.textContent = hidden ? '▶' : '◀'; sideBtn.title = window.I18N.t(hidden ? 'Afficher le panneau' : 'Masquer le panneau'); };
+    let sideHidden = false; try { sideHidden = localStorage.getItem('mixarr-side') === '1'; } catch (e) { /* rien */ }
+    setSide(sideHidden);
+    sideBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-side'); setSide(h); try { localStorage.setItem('mixarr-side', h ? '1' : '0'); } catch (e) { /* rien */ } });
     $('#new-pl').addEventListener('click', async () => {
       const name = prompt(window.I18N.t('Nom de la nouvelle playlist :')); if (!name) return;
       try { const p = await api('POST', '/api/playlists', { name }); await library.loadPlaylists(); $('#target-pl').value = p.id; library.show({ type: 'playlist', id: p.id }); } catch (e) { toast(e.message, 'error'); }

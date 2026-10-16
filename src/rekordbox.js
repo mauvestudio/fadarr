@@ -60,6 +60,9 @@ function exportXml(playlistIds = []) {
 
   const offsetS = (settings.mp3OffsetMs || 0) / 1000;
   const lines = [];
+  const noBpm = [];   // morceaux sans BPM : pas de grille possible -> inutilisables en SYNC / quantize sur les CDJ
+  let noGrid = 0;     // BPM connu mais pas de début de grille précis (grille posée à 0 : à vérifier dans Rekordbox)
+  let withCues = 0;
   for (const [rel, id] of ids) {
     const e = library.entry(rel);
     const info = store.trackInfo(rel) || {};
@@ -85,9 +88,18 @@ function exportXml(playlistIds = []) {
       Location: locationOf(rel, settings.macPrefix)
     });
     const inner = [];
-    if (bpm && Number.isFinite(info.gridStart)) {
-      inner.push(`      <TEMPO ${attrs({ Inizio: t(info.gridStart), Bpm: Number(bpm).toFixed(2), Metro: '4/4', Battito: 1 })}/>`);
+    // Grille de tempo : indispensable pour que les CDJ affichent la grille, la phase et jouent le SYNC / quantize.
+    // On l'écrit dès qu'un BPM est connu ; sans début de grille précis, on l'ancre au premier temps connu (cue) ou à 0.
+    if (bpm) {
+      const hasGrid = Number.isFinite(info.gridStart);
+      const firstCue = (info.cues || []).map((c) => c.start).filter((s) => Number.isFinite(s)).sort((a, b) => a - b)[0];
+      const inizio = hasGrid ? info.gridStart : (Number.isFinite(firstCue) ? firstCue : 0);
+      if (!hasGrid) noGrid++;
+      inner.push(`      <TEMPO ${attrs({ Inizio: t(inizio), Bpm: Number(bpm).toFixed(2), Metro: '4/4', Battito: 1 })}/>`);
+    } else {
+      noBpm.push(e.artist && e.title ? `${e.artist} - ${e.title}` : rel);
     }
+    if ((info.cues || []).length) withCues++;
     for (const c of info.cues || []) {
       const isLoop = c.kind === 'loop';
       const num = c.kind === 'memory' ? -1 : (c.num >= 0 ? c.num : -1);
@@ -125,7 +137,7 @@ function exportXml(playlistIds = []) {
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<DJ_PLAYLISTS Version="1.0.0">',
-    '  <PRODUCT Name="mixarr" Version="0.1.0" Company=""/>',
+    '  <PRODUCT Name="mixarr" Version="0.2.0" Company=""/>',
     `  <COLLECTION Entries="${ids.size}">`,
     ...lines,
     '  </COLLECTION>',
@@ -138,7 +150,7 @@ function exportXml(playlistIds = []) {
     ''
   ].join('\n');
 
-  return { xml, tracks: ids.size, playlists: wanted.length, missing };
+  return { xml, tracks: ids.size, playlists: wanted.length, missing, withBpm: ids.size - noBpm.length, withGrid: ids.size - noBpm.length - noGrid, withCues, noGrid, noBpm: noBpm.slice(0, 200), noBpmCount: noBpm.length };
 }
 
 module.exports = { exportXml, _internals: { locationOf, HOT_COLORS } };

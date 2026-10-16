@@ -160,6 +160,23 @@
       'Coche au moins une playlist.': 'Tick at least one playlist.',
       'rekordbox.xml : {n} morceaux': 'rekordbox.xml: {n} tracks',
       '{n} absents du NAS ignorés': '{n} missing from NAS skipped',
+      // ---------- BPM éditable, SYNC, repli ----------
+      'BPM — clic pour régler': 'BPM — click to set',
+      'BPM du morceau (Entrée pour valider, Échap pour annuler)': 'Track BPM (Enter to confirm, Esc to cancel)',
+      'Charge un morceau pour régler son BPM.': 'Load a track to set its BPM.',
+      'BPM non enregistré : {msg}': 'BPM not saved: {msg}',
+      'Réduire les decks': 'Collapse the decks',
+      'Afficher les decks': 'Show the decks',
+      'Masquer le panneau': 'Hide the panel',
+      'Afficher le panneau': 'Show the panel',
+      // ---------- rapport d'export ----------
+      'rekordbox.xml téléchargé': 'rekordbox.xml downloaded',
+      '{n} morceaux exportés — {g} avec grille de tempo, {c} avec cues/loops.': '{n} tracks exported — {g} with a beat grid, {c} with cues/loops.',
+      '{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans mixarr et clique sur le BPM pour le poser.': '{n} tracks with no BPM: CDJs will show no grid and no SYNC for them. Load them in mixarr and click the BPM to set it.',
+      "{n} morceaux ont un BPM mais pas de grille précise : la grille est posée au premier temps connu. Vérifie-les dans Rekordbox (double-clic sur la grille pour recaler si besoin).": '{n} tracks have a BPM but no precise grid: the grid is anchored on the first known beat. Check them in Rekordbox (double-click the grid to re-align if needed).',
+      '{n} morceaux absents du NAS ont été ignorés.': '{n} tracks missing from the NAS were skipped.',
+      'Tous les morceaux ont un BPM et une grille. ✔': 'Every track has a BPM and a grid. ✔',
+      'Pour être sûr que ça passe sur les platines : 1) Rekordbox > Préférences > Avancé > rekordbox xml : choisis ce fichier ; 2) clic droit sur la playlist > Importer ; 3) vérifie que grille et cues apparaissent sur le morceau ; 4) branche ta clé USB, Rekordbox > Exporter vers le périphérique ; 5) relis la clé sur une CDJ (ou en mode Export). Garde le même rekordbox.xml et remplace-le à chaque export.': 'To be sure it plays on the players: 1) Rekordbox > Preferences > Advanced > rekordbox xml: pick this file; 2) right-click the playlist > Import; 3) check the grid and cues show on the track; 4) plug in your USB stick, Rekordbox > Export to device; 5) read the stick on a CDJ (or in Export mode). Keep the same rekordbox.xml and replace it on every export.',
       'Erreur {status}': 'Error {status}'
     }
   };

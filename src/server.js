@@ -125,6 +125,7 @@ app.put('/api/track/meta', wrap(async (req, res) => {
   if (b.key !== undefined) patch.key = String(b.key).slice(0, 8);
   if (b.rating !== undefined) patch.rating = Math.max(0, Math.min(255, Math.round(Number(b.rating) || 0)));
   if (b.comment !== undefined) patch.comment = String(b.comment).slice(0, 300);
+  if (b.bpm !== undefined || b.gridStart !== undefined) patch.edited = true; // valeur posée à la main : un ré-import Traktor ne l'écrase pas
   res.json(store.updateTrack(rel, patch));
 }));
 
@@ -211,13 +212,16 @@ app.post('/api/import/traktor', express.text({ type: '*/*', limit: '200mb' }), w
 
 app.post('/api/export/rekordbox', wrap(async (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
-  const { xml, tracks, playlists, missing } = require('./rekordbox').exportXml(ids);
-  console.log(`📤 Export Rekordbox : ${playlists} playlist(s), ${tracks} morceau(x).`);
+  const rep = require('./rekordbox').exportXml(ids);
+  console.log(`📤 Export Rekordbox : ${rep.playlists} playlist(s), ${rep.tracks} morceau(x), ${rep.withGrid} avec grille.`);
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="rekordbox.xml"');
-  res.setHeader('X-Mixarr-Tracks', String(tracks));
-  res.setHeader('X-Mixarr-Missing', String(missing.length));
-  res.send(xml);
+  res.setHeader('X-Mixarr-Tracks', String(rep.tracks));
+  res.setHeader('X-Mixarr-Missing', String(rep.missing.length));
+  res.setHeader('X-Mixarr-Nobpm', String(rep.noBpmCount));
+  res.setHeader('X-Mixarr-Nogrid', String(rep.noGrid));
+  res.setHeader('X-Mixarr-Cues', String(rep.withCues));
+  res.send(rep.xml);
 }));
 
 // ---------------------------------------------------------------------------

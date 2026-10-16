@@ -15,6 +15,7 @@
   </button>
   <button type="button" id="scan-btn" class="btn ghost" title="Relire la bibliothèque du NAS (seuls les fichiers nouveaux ou modifiés sont lus)">Analyser le NAS</button>
   <span id="scan-info" class="muted small"></span>
+  <button type="button" id="toggle-decks" class="btn ghost icon" title="Réduire les decks" aria-label="Réduire les decks">▲</button>
   <span class="grow"></span>
   <label class="btn ghost" title="Importer ta collection Traktor (collection.nml)">Importer Traktor<input type="file" id="nml-input" accept=".nml,application/xml,text/xml" hidden></label>
   <button type="button" id="export-btn" class="btn accent">Exporter vers Rekordbox</button>
@@ -68,6 +69,7 @@
   </aside>
   <main class="list">
     <div class="list-head">
+      <button type="button" id="toggle-side" class="mini" title="Masquer le panneau" aria-label="Masquer le panneau">◀</button>
       <div id="list-title" class="list-title">Toute la bibliothèque</div>
       <input type="search" id="search" placeholder="Rechercher (artiste, titre, album, dossier…)" autocomplete="off">
       <span class="bpm-filter small muted" title="N'afficher que les morceaux dans cette plage de BPM">BPM
@@ -94,7 +96,7 @@
   <div class="deck-top">
     <span class="deck-letter"></span>
     <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist muted"></div></div>
-    <div class="deck-nums"><div class="d-bpm">—</div><div class="d-key muted small"></div></div>
+    <div class="deck-nums"><button type="button" class="d-bpm" title="BPM — clic pour régler">—</button><span class="d-bpm-lab muted small">BPM</span><div class="d-key muted small"></div></div>
   </div>
   <canvas class="wave-zoom" height="90"></canvas>
   <canvas class="wave-over" height="44"></canvas>
