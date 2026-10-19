@@ -1,3 +1,5 @@
+![fadarr — le meilleur de Rekordbox et de Traktor, dans le navigateur](docs/banner.jpg)
+
 # fadarr
 
 🇬🇧 [English](README.md) · 🇫🇷 **Français**
