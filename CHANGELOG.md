@@ -13,6 +13,7 @@ Inspiré de Mixxx (idées seulement ; Mixxx est GPL, mixarr reste MIT).
 ### Corrigé
 - **Mise en page des formes d'onde** : hauteur désormais fixe (ne grandit plus avec la largeur) — les decks ne dévorent plus l'écran et la bibliothèque prend toute la place. Les decks occupent toute la largeur.
 - **Rangée transport compactée** : CUE · Play · IN / OUT / 4 / 8 / loop sur une seule ligne (plus de ligne à moitié vide) ; Quantize et memory cue/loop regroupés avec les outils de grille.
+- **Suppression des memory cues** : la croix d'une puce les efface de nouveau (elles ne partaient plus après enregistrement).
 - *EN: Mixxx-style RGB waveform (selectable), browser beatgrid detection, per-deck grid tools, date-added column & filter; fixed waveform height, full-width decks, compacted transport row.*
 
 ## [0.4.0] — 2026-10-19

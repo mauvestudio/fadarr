@@ -436,7 +436,7 @@
       this.saveTimer = setTimeout(async () => {
         try {
           const r = await api('PUT', '/api/track/cues', { path, cues: this.cues });
-          if (this.track && this.track.path === path) this.cues = r.cues;
+          if (this.track && this.track.path === path) { this.cues = r.cues; this.renderPads(); this.renderMem(); } // ré-aligne l'affichage sur les objets renvoyés
           library.updateCount(path, r.cues.length);
         } catch (e) { toast(t('Cues non enregistrés : {msg}', { msg: e.message }), 'error'); }
       }, 300);
@@ -489,12 +489,12 @@
         chip.innerHTML = `<b>${c.kind === 'loop' ? '⟲' : '♦'}</b>${fmt(c.start, true)}${c.kind === 'loop' ? `–${fmt(c.end, true)}` : ''}${c.name ? ` ${esc(c.name)}` : ''}<button type="button" title="${t('Supprimer')}">×</button>`;
         chip.title = t('Clic : y aller — double-clic : renommer');
         chip.addEventListener('click', (ev) => {
-          if (ev.target.tagName === 'BUTTON') { this.cues = this.cues.filter((x) => x !== c); this.saveCues(); return; }
+          if (ev.target.tagName === 'BUTTON') { this.cues = this.cues.filter((x) => x.id !== c.id); this.saveCues(); return; } // par id : la liste a pu être remplacée après enregistrement
           if (c.kind === 'loop') this.setLoop(c.start, c.end); else this.seek(c.start);
         });
         chip.addEventListener('dblclick', () => {
           const name = prompt(t('Nom du repère (visible dans Rekordbox) :'), c.name || '');
-          if (name !== null) { c.name = name.slice(0, 60); this.saveCues(); }
+          if (name !== null) { const cur = this.cues.find((x) => x.id === c.id); if (cur) cur.name = name.slice(0, 60); this.saveCues(); }
         });
         box.appendChild(chip);
       });
