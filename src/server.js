@@ -125,7 +125,8 @@ app.put('/api/track/meta', wrap(async (req, res) => {
   if (b.key !== undefined) patch.key = String(b.key).slice(0, 8);
   if (b.rating !== undefined) patch.rating = Math.max(0, Math.min(255, Math.round(Number(b.rating) || 0)));
   if (b.comment !== undefined) patch.comment = String(b.comment).slice(0, 300);
-  if (b.bpm !== undefined || b.gridStart !== undefined) patch.edited = true; // valeur posée à la main : un ré-import Traktor ne l'écrase pas
+  // valeur posée à la main (Tap, 1er temps, ×2/÷2, édition du BPM) : un ré-import ne l'écrase pas. La détection auto (b.auto) ne bloque rien.
+  if ((b.bpm !== undefined || b.gridStart !== undefined) && !b.auto) patch.edited = true;
   res.json(store.updateTrack(rel, patch));
 }));
 

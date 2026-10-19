@@ -2,9 +2,9 @@
 
 🇬🇧 [English](README.md) · 🇫🇷 **Français**
 
-**Préparer ses sets DJ dans le navigateur, directement depuis le NAS — et repartir avec une clé USB rekordbox-friendly pour les platines CDJ.**
-Ouvrir sa **bibliothèque Traktor** (playlists, cues, loops, grilles, tonalités) dans le navigateur, écouter ses morceaux sur deux decks,
-construire des playlists, poser hot cues, memory cues et loops, puis tout confier à Rekordbox, qui grave une clé USB que les CDJ du club lisent proprement.
+**Le meilleur de Rekordbox et de Traktor, dans le navigateur — préparer ses sets directement depuis le NAS.**
+Importer sa **bibliothèque Traktor _ou_ Rekordbox** (playlists, cues, loops, grilles, tonalités), écouter ses morceaux sur deux decks,
+construire des playlists, poser hot cues, memory cues et loops, puis exporter vers Rekordbox pour une clé USB que les CDJ du club lisent proprement.
 
 ![mixarr](docs/screenshot.png)
 

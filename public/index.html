@@ -23,6 +23,9 @@
   <label class="skin-pick small muted" title="Apparence du mixeur">Skin
     <select id="skin"><option value="base">Base</option><option value="analog">Analog</option><option value="rotary">Rotary</option></select>
   </label>
+  <label class="skin-pick small muted" title="Style de forme d'onde">Onde
+    <select id="wave"><option value="rgb">RGB</option><option value="bands">Bandes</option></select>
+  </label>
   <button type="button" id="lang-btn" class="btn ghost icon" title="Langue / Language"></button>
   <button type="button" id="settings-btn" class="btn ghost icon" title="Réglages" aria-label="Réglages">⚙</button>
 </header>
@@ -79,12 +82,15 @@
         <input type="number" id="bpm-min" min="40" max="250" step="0.5" placeholder="min">–<input type="number" id="bpm-max" min="40" max="250" step="0.5" placeholder="max">
         <button type="button" class="mini" id="bpm-near-a" title="Autour du BPM du deck A (±3 %)">≈A</button><button type="button" class="mini" id="bpm-near-b" title="Autour du BPM du deck B (±3 %)">≈B</button><button type="button" class="mini" id="bpm-clear" title="Toute la plage">×</button>
       </span>
+      <label class="small muted" title="Filtrer par date d'ajout">Ajoutés
+        <select id="added-filter"><option value="0">tous</option><option value="7">7 j</option><option value="30">30 j</option><option value="90">90 j</option><option value="365">1 an</option></select>
+      </label>
       <label class="small muted target">Ajouter à <select id="target-pl"><option value="">—</option></select></label>
       <span id="list-actions"></span>
     </div>
     <div class="table-wrap">
       <table id="tracks">
-        <thead><tr><th class="n" data-sort="index">#</th><th data-sort="artist">Artiste</th><th data-sort="title">Titre</th><th class="r" data-sort="bpm">BPM</th><th data-sort="key" id="key-head" title="Clic : trier — Maj+clic : notation (musicale / Camelot / Open Key)">Ton.</th><th class="r" data-sort="duration">Durée</th><th data-sort="format">Format</th><th class="r" data-sort="cueCount">Cues</th><th class="act"></th></tr></thead>
+        <thead><tr><th class="n" data-sort="index">#</th><th data-sort="artist">Artiste</th><th data-sort="title">Titre</th><th class="r" data-sort="bpm">BPM</th><th data-sort="key" id="key-head" title="Clic : trier — Maj+clic : notation (musicale / Camelot / Open Key)">Ton.</th><th class="r" data-sort="duration">Durée</th><th data-sort="format">Format</th><th class="r" data-sort="cueCount">Cues</th><th class="r" data-sort="added" title="Date d'ajout">Ajouté</th><th class="act"></th></tr></thead>
         <tbody></tbody>
       </table>
       <div id="empty" class="empty"></div>
@@ -109,17 +115,24 @@
     <div class="deck-row transport">
       <button type="button" class="tbtn cue" data-a="cue" title="CUE : à l'arrêt, pose le point de départ ; en lecture, y revient">CUE</button>
       <button type="button" class="tbtn play jog" data-a="play" title="Lecture / pause">▶</button>
-    </div>
-    <div class="pads"></div>
-    <div class="deck-row loops">
-      <button type="button" class="lbtn" data-a="in">IN</button>
-      <button type="button" class="lbtn" data-a="out">OUT</button>
+      <span class="loops-sep"></span>
+      <button type="button" class="lbtn" data-a="in" title="Début de loop">IN</button>
+      <button type="button" class="lbtn" data-a="out" title="Fin de loop">OUT</button>
       <button type="button" class="lbtn" data-a="beat4" title="Loop de 4 temps (selon le BPM)">4</button>
       <button type="button" class="lbtn" data-a="beat8" title="Loop de 8 temps">8</button>
       <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
-      <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
-      <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
+    </div>
+    <div class="pads"></div>
+    <div class="deck-row grid">
+      <span class="grid-lab muted small">Grille</span>
+      <button type="button" class="lbtn" data-g="tap" title="Tap tempo : clique en rythme">Tap</button>
+      <button type="button" class="lbtn" data-g="down" title="Caler le 1er temps sur la tête de lecture">1er temps</button>
+      <button type="button" class="lbtn" data-g="half" title="BPM ÷2">÷2</button>
+      <button type="button" class="lbtn" data-g="double" title="BPM ×2">×2</button>
+      <button type="button" class="lbtn" data-g="auto" title="Détecter automatiquement BPM et grille">Auto</button>
       <button type="button" class="lbtn q on" data-a="q" title="Quantize : cues et loops calés sur la grille de tempo">Q</button>
+      <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
+      <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
     </div>
     <div class="memlist"></div>
   </div>

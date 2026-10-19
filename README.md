@@ -2,9 +2,9 @@
 
 🇬🇧 **English** · 🇫🇷 [Français](LISEZMOI.md)
 
-**Prepare your DJ sets in the browser, straight from your NAS — and walk away with a Rekordbox-friendly USB stick for the CDJs.**
-Open your **Traktor library** (playlists, cues, loops, beat grids, keys) right in the browser, audition tracks on two decks, build playlists,
-set hot cues, memory cues and loops — then hand everything to Rekordbox, which writes a USB stick your club's CDJ players read cleanly.
+**The best of Rekordbox and Traktor, in your browser — prep your DJ sets straight from your NAS.**
+Import your **Traktor _or_ Rekordbox library** (playlists, cues, loops, beat grids, keys), audition tracks on two decks, build playlists,
+set hot cues, memory cues and loops — then export back to Rekordbox for a USB stick your club's CDJ players read cleanly.
 
 ![mixarr](docs/screenshot.png)
 

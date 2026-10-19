@@ -13,6 +13,7 @@
     const txt = tenth ? `${m}:${sec.toFixed(1).padStart(4, '0')}` : `${m}:${String(Math.floor(sec)).padStart(2, '0')}`;
     return neg ? `-${txt}` : txt;
   };
+  const shortDate = (ms) => { if (!ms) return ''; try { return new Date(ms).toLocaleDateString(window.I18N.locale, { day: '2-digit', month: '2-digit', year: '2-digit' }); } catch (e) { return ''; } };
   // Tonalité : notation musicale (stockée), Camelot ou Open Key (Traktor) à l'affichage
   const CAMELOT = { 'C': '8B', 'Db': '3B', 'D': '10B', 'Eb': '5B', 'E': '12B', 'F': '7B', 'F#': '2B', 'G': '9B', 'Ab': '4B', 'A': '11B', 'Bb': '6B', 'B': '1B',
     'Cm': '5A', 'Dbm': '12A', 'C#m': '12A', 'Dm': '7A', 'Ebm': '2A', 'D#m': '2A', 'Em': '9A', 'Fm': '4A', 'F#m': '11A', 'Gm': '6A', 'Abm': '1A', 'G#m': '1A', 'Am': '8A', 'Bbm': '3A', 'Bm': '10A',
@@ -195,6 +196,9 @@
         this.status('');
         this.renderInfo(); this.renderPads(); this.renderMem(); this.renderLoopBtns();
         refDeck = this; library.renderRows(); // la liste montre ce qui s'enchaîne avec ce morceau
+        if (!this.bpm) setTimeout(() => { // aucune grille importée : on l'analyse (comme Mixxx), sans marquer le morceau « modifié »
+          if (this.buffer === buf && !this.bpm) { const r = detectBpmGrid(buf); if (r) this.saveMeta({ bpm: r.bpm, gridStart: r.gridStart }, true); }
+        }, 30);
       } catch (e) {
         if (token !== this.loading) return;
         this.status('');
@@ -297,6 +301,57 @@
         else if (ev.key === 'Escape') { ev.preventDefault(); done = true; restore(); }
       });
       inp.addEventListener('blur', commit);
+    }
+
+    /** Enregistre BPM / début de grille (via /api/track/meta). auto = détection automatique (n'est pas marquée « modifiée »). */
+    async saveMeta(patch, auto) {
+      if (!this.track) return;
+      const path = this.track.path;
+      try {
+        await api('PUT', '/api/track/meta', { path, ...patch, ...(auto ? { auto: true } : {}) });
+        if (this.track && this.track.path === path) {
+          if (patch.bpm != null) this.track.bpm = Math.round(patch.bpm * 100) / 100;
+          if ('gridStart' in patch) this.track.gridStart = patch.gridStart;
+          this.renderInfo();
+        }
+        if (patch.bpm != null) library.updateBpm(path, Math.round(patch.bpm * 100) / 100);
+        if (refDeck === this) library.renderRows();
+      } catch (e) { toast(t('Grille non enregistrée : {msg}', { msg: e.message }), 'error'); }
+    }
+
+    /** Barre « Grille » : Tap, caler le 1er temps, ×2 / ÷2, détection automatique. */
+    gridAction(a) {
+      if (!this.buffer || !this.track) return;
+      if (a === 'tap') return this.tapTempo();
+      if (a === 'auto') {
+        const r = detectBpmGrid(this.buffer);
+        if (!r) { toast(t('Détection impossible sur ce morceau.')); return; }
+        this.saveMeta({ bpm: r.bpm, gridStart: r.gridStart });
+        toast(t('Détecté : {bpm} BPM', { bpm: r.bpm.toFixed(2) }));
+        return;
+      }
+      if (!this.bpm) { toast(t('Pose d\'abord un BPM (clic sur le BPM, Tap, ou Auto).')); return; }
+      const beat = 60 / this.bpm;
+      if (a === 'down') {
+        const g0 = Number.isFinite(this.track.gridStart) ? this.track.gridStart : 0;
+        const pos = this.position;
+        const ng = pos - Math.round((pos - g0) / beat) * beat; // décale la grille pour qu'un temps tombe sur la tête de lecture
+        this.saveMeta({ gridStart: Math.max(0, Math.round(ng * 1000) / 1000) });
+      } else if (a === 'half') this.saveMeta({ bpm: Math.round(this.bpm / 2 * 100) / 100 });
+      else if (a === 'double') this.saveMeta({ bpm: Math.round(this.bpm * 2 * 100) / 100 });
+    }
+
+    /** Tap tempo : clics en rythme -> BPM (médiane des intervalles). */
+    tapTempo() {
+      const now = performance.now();
+      if (!this._taps || now - (this._tapLast || 0) > 2000) this._taps = [];
+      this._taps.push(now); this._tapLast = now;
+      if (this._taps.length >= 2) {
+        const spans = []; for (let i = 1; i < this._taps.length; i++) spans.push(this._taps[i] - this._taps[i - 1]);
+        spans.sort((x, y) => x - y); const med = spans[Math.floor(spans.length / 2)];
+        if (med > 250 && med < 1200) this.saveMeta({ bpm: Math.round(60000 / med * 100) / 100 });
+      }
+      if (this._taps.length > 8) this._taps = this._taps.slice(-8);
     }
 
     /** Quantize (bouton Q) : cale une position sur le temps le plus proche de la grille, si BPM et grille sont connus. */
@@ -448,7 +503,8 @@
     bindUi() {
       $('[data-a="play"]', this.el).addEventListener('click', () => this.toggle());
       $('[data-a="cue"]', this.el).addEventListener('click', () => this.cue());
-      $$('.lbtn', this.el).forEach((b) => b.addEventListener('click', () => this.loopAction(b.dataset.a)));
+      $$('.lbtn[data-a]', this.el).forEach((b) => b.addEventListener('click', () => this.loopAction(b.dataset.a)));
+      $$('.lbtn[data-g]', this.el).forEach((b) => b.addEventListener('click', () => this.gridAction(b.dataset.g)));
       $('.d-bpm', this.el).addEventListener('click', () => this.editBpm());
       const pitch = $('.d-pitch', this.el);
       pitch.addEventListener('input', () => this.setRate(Number(pitch.value)));
@@ -527,11 +583,81 @@
     return { rate: PEAK_RATE, max, lo, mi, hi };
   }
 
+  /**
+   * Détection de tempo et du premier temps (façon analyseur de beatgrid de Mixxx, version légère) :
+   * enveloppe d'attaques sur les graves -> autocorrélation pour le BPM (70-180) -> phase pour caler le 1er temps.
+   * Analyse les ~2 premières minutes. Renvoie { bpm, gridStart } ou null.
+   */
+  function detectBpmGrid(buf) {
+    const sr = buf.sampleRate;
+    const N = Math.floor(Math.min(buf.duration, 120) * sr);
+    const c0 = buf.getChannelData(0); const c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
+    const hop = 512; const fps = sr / hop; const nf = Math.floor(N / hop);
+    if (nf < 40) return null;
+    const env = new Float32Array(nf);
+    const aL = Math.exp(-2 * Math.PI * 200 / sr); let lp1 = 0, lp2 = 0, prev = 0;
+    for (let f = 0; f < nf; f++) {
+      let e = 0; const a = f * hop; const b = a + hop;
+      for (let j = a; j < b; j++) { const x = (c0[j] + c1[j]) * 0.5; lp1 = (1 - aL) * x + aL * lp1; lp2 = (1 - aL) * lp1 + aL * lp2; e += lp2 * lp2; }
+      const v = Math.sqrt(e / hop); env[f] = Math.max(0, v - prev); prev = v; // flux d'énergie des graves (attaques)
+    }
+    let mx = 0; for (let i = 0; i < nf; i++) if (env[i] > mx) mx = env[i];
+    if (mx <= 0) return null; for (let i = 0; i < nf; i++) env[i] /= mx;
+    // 1) autocorrélation pour trouver le BPM grossier
+    let coarse = 0, bestAc = -1;
+    for (let bpm = 70; bpm <= 180; bpm += 0.5) {
+      const lag = Math.round(fps * 60 / bpm); if (lag < 2 || lag >= nf) continue;
+      let s = 0; for (let i = 0; i + lag < nf; i++) s += env[i] * env[i + lag];
+      if (s > bestAc) { bestAc = s; coarse = bpm; }
+    }
+    if (!coarse) return null;
+    // 2) ajustement « peigne de temps » (BPM + phase ensemble) : on récompense les temps qui tombent sur les attaques -> cale précisément la grille
+    const comb = (bpm) => {
+      const P = fps * 60 / bpm; const Pr = Math.max(1, Math.round(P));
+      let best = -1, off = 0;
+      for (let o = 0; o < Pr; o++) { let s = 0; for (let k = o; k < nf; k += P) s += env[Math.round(k)] || 0; if (s > best) { best = s; off = o; } }
+      return { score: best, off, P };
+    };
+    let bpm = coarse, fit = comb(coarse);
+    for (let cand = coarse - 2; cand <= coarse + 2; cand += 0.05) { if (cand < 60) continue; const f = comb(cand); if (f.score > fit.score) { fit = f; bpm = cand; } }
+    while (bpm < 90) bpm *= 2; while (bpm > 175) bpm /= 2;
+    const ri = Math.round(bpm); // arrondi doux : la plupart des BPM sont entiers ou demis
+    if (Math.abs(bpm - ri) < 0.08) bpm = ri; else { const rh = Math.round(bpm * 2) / 2; if (Math.abs(bpm - rh) < 0.08) bpm = rh; }
+    const beatS = 60 / bpm;
+    const gridStart = (fit.off / fps) % beatS;
+    return { bpm: Math.round(bpm * 100) / 100, gridStart: Math.round(gridStart * 1000) / 1000 };
+  }
+
   /** Couleurs des 3 bandes (réglables par skin : --wf-lo / --wf-mi / --wf-hi). */
   function waveColors() {
     const cs = getComputedStyle(document.body);
     return { lo: cs.getPropertyValue('--wf-lo').trim() || '#2f6df2', mi: cs.getPropertyValue('--wf-mi').trim() || '#f2992e', hi: cs.getPropertyValue('--wf-hi').trim() || '#f4f1ea' };
   }
+
+  // Style de forme d'onde : « bands » (3 bandes empilées) ou « rgb » (une couleur par colonne, façon Mixxx).
+  let waveStyle = 'rgb';
+  try { waveStyle = localStorage.getItem('mixarr-wave') || 'rgb'; } catch (e) { /* rien */ }
+  const hexRgb = (h) => { const n = parseInt(String(h).replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; };
+  function waveColorsRGB() { const c = waveColors(); return { lo: hexRgb(c.lo), mi: hexRgb(c.mi), hi: hexRgb(c.hi) }; }
+
+  /** Colonne « RGB » (façon Mixxx) : une seule couleur, mélange des 3 bandes pondéré par leur énergie ; hauteur = amplitude. */
+  function drawColumnRGB(g, x, h, v, cols, scale) {
+    const [m, l, md, hh] = v;
+    const sum = l + md + hh;
+    const mid = h / 2;
+    let r = 70, gg = 70, b = 70;
+    if (sum > 0) {
+      r = (l * cols.lo.r + md * cols.mi.r + hh * cols.hi.r) / sum;
+      gg = (l * cols.lo.g + md * cols.mi.g + hh * cols.hi.g) / sum;
+      b = (l * cols.lo.b + md * cols.mi.b + hh * cols.hi.b) / sum;
+    }
+    const bar = Math.max(1, m * scale);
+    g.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`;
+    g.fillRect(x, mid - bar / 2, 1, bar);
+  }
+
+  /** Renvoie les couleurs et la fonction de dessin selon le style choisi. */
+  function wavePaint() { return waveStyle === 'rgb' ? { cols: waveColorsRGB(), draw: drawColumnRGB } : { cols: waveColors(), draw: drawColumn }; }
 
   /** Pics d'une plage d'indices [i0, i1[ (le plus fort de chaque bande). */
   function peakRange(pk, i0, i1) {
@@ -564,14 +690,14 @@
 
   /** Vue d'ensemble pré-rendue (une seule fois par morceau et par taille) ; à chaque image on n'ajoute que le curseur. */
   function overviewImage(d, w, h) {
-    if (d.overCache && d.overCache.w === w && d.overCache.h === h && d.overCache.peaks === d.peaks && d.overCache.skin === document.body.dataset.skin) return d.overCache.canvas;
+    if (d.overCache && d.overCache.w === w && d.overCache.h === h && d.overCache.peaks === d.peaks && d.overCache.skin === document.body.dataset.skin && d.overCache.wave === waveStyle) return d.overCache.canvas;
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    const g = cv.getContext('2d'); const col = waveColors(); const n = d.peaks.max.length;
+    const g = cv.getContext('2d'); const { cols, draw } = wavePaint(); const n = d.peaks.max.length;
     for (let x = 0; x < w; x++) {
       const a = Math.floor((x / w) * n); const b = Math.max(a + 1, Math.floor(((x + 1) / w) * n));
-      drawColumn(g, x, h, peakRange(d.peaks, a, b), col, h - 4);
+      draw(g, x, h, peakRange(d.peaks, a, b), cols, h - 4);
     }
-    d.overCache = { w, h, peaks: d.peaks, skin: document.body.dataset.skin, canvas: cv };
+    d.overCache = { w, h, peaks: d.peaks, skin: document.body.dataset.skin, wave: waveStyle, canvas: cv };
     return cv;
   }
 
@@ -600,7 +726,7 @@
       const span = ZOOM_SECONDS;
       const t0 = pos - span / 2;
       const perPx = (span * d.peaks.rate) / w;
-      const col = waveColors();
+      const { cols, draw } = wavePaint();
       if (d.loop) {
         const x1 = ((d.loop.start - t0) / span) * w; const x2 = ((d.loop.end - t0) / span) * w;
         g.fillStyle = d.loop.active ? 'rgba(60,207,110,.20)' : 'rgba(255,255,255,.06)'; g.fillRect(x1, 0, x2 - x1, h);
@@ -610,7 +736,7 @@
         const i1 = Math.max(i0 + 1, Math.floor((t0 * d.peaks.rate) + (x + 1) * perPx));
         if (i1 <= 0 || i0 >= d.peaks.max.length) continue;
         g.globalAlpha = x < w / 2 ? 0.5 : 1;
-        drawColumn(g, x, h, peakRange(d.peaks, i0, i1), col, h - 6);
+        draw(g, x, h, peakRange(d.peaks, i0, i1), cols, h - 6);
       }
       g.globalAlpha = 1;
       // grille de tempo (par-dessus, discrète ; temps fort toutes les 4)
@@ -1023,16 +1149,19 @@
 
     sort: { col: 'default', dir: 1 },
     bpmRange: { min: null, max: null },
+    addedRange: { days: 0 },
 
-    /** Lignes affichées : filtre de BPM puis tri choisi (en-têtes de colonnes). */
+    /** Lignes affichées : filtres (BPM, date d'ajout) puis tri choisi (en-têtes de colonnes). */
     visibleRows() {
       const { min, max } = this.bpmRange;
       let rows = this.rows.map((t, i) => (t.index === undefined ? { ...t, index: i } : t));
       if (min || max) rows = rows.filter((t) => t.bpm && (!min || t.bpm >= min) && (!max || t.bpm <= max));
+      if (this.addedRange.days) { const since = Date.now() - this.addedRange.days * 86400000; rows = rows.filter((t) => t.added && t.added >= since); }
       const { col, dir } = this.sort;
       if (col !== 'default') {
         const val = (t) => {
           if (col === 'key') return keySortValue(t.key);
+          if (col === 'added') return Number(t.added) || 0;
           if (col === 'index' || col === 'bpm' || col === 'duration' || col === 'cueCount') return Number(t[col]) || (col === 'index' ? 0 : -1);
           return String(t[col] || '').toLowerCase();
         };
@@ -1067,6 +1196,7 @@
       return `<td class="n">${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
         + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
         + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
+        + `<td class="r muted small" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
         + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
         + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
         + `<td class="vcls" hidden>${cls}</td>`;
@@ -1093,13 +1223,13 @@
       const last = Math.min(n, first + count);
       const top = first * h;
       const bottom = Math.max(0, (n - last) * h);
-      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="10"></td></tr>` : '';
+      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="11"></td></tr>` : '';
       for (let i = first; i < last; i++) {
         const tr = rows[i];
         const num = (this.current ? tr.index : i) + 1;
         html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}>${this.rowHtml(tr, num)}</tr>`;
       }
-      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="10"></td></tr>`;
+      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="11"></td></tr>`;
       body.innerHTML = html;
       // reporte les classes (match / loaded / missing) calculées dans rowHtml
       $$('#tracks tbody tr[data-vi]').forEach((tr) => { const c = $('.vcls', tr); if (c) { if (c.textContent) tr.className = c.textContent; c.remove(); } });
@@ -1343,6 +1473,9 @@
     $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
     $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
     $('#rbxml-input').addEventListener('change', (e) => importRekordbox(e.target.files[0]));
+    // style de forme d'onde (RGB façon Mixxx / 3 bandes)
+    const wsel = $('#wave'); wsel.value = waveStyle;
+    wsel.addEventListener('change', () => { waveStyle = wsel.value; try { localStorage.setItem('mixarr-wave', waveStyle); } catch (e) { /* rien */ } });
     // replier la zone des decks (plus de place pour la bibliothèque) et le panneau de gauche
     const deckBtn = $('#toggle-decks');
     const setDecks = (hidden) => { document.body.classList.toggle('no-decks', hidden); deckBtn.textContent = hidden ? '▼' : '▲'; deckBtn.title = window.I18N.t(hidden ? 'Afficher les decks' : 'Réduire les decks'); };
@@ -1388,7 +1521,7 @@
       }
       const s = library.sort;
       if (s.col !== th.dataset.sort) library.sort = { col: th.dataset.sort, dir: th.dataset.sort === 'bpm' || th.dataset.sort === 'key' || th.dataset.sort === 'index' || th.dataset.sort === 'artist' || th.dataset.sort === 'title' || th.dataset.sort === 'format' ? 1 : -1 };
-      else if (s.dir === (library.sort.col === 'cueCount' || library.sort.col === 'duration' ? -1 : 1)) library.sort = { col: s.col, dir: -s.dir };
+      else if (s.dir === (library.sort.col === 'cueCount' || library.sort.col === 'duration' || library.sort.col === 'added' ? -1 : 1)) library.sort = { col: s.col, dir: -s.dir };
       else library.sort = { col: 'default', dir: 1 };
       library.renderRows();
     }));
@@ -1409,6 +1542,7 @@
     $('#bpm-near-a').addEventListener('click', () => near(decks.A));
     $('#bpm-near-b').addEventListener('click', () => near(decks.B));
     $('#bpm-clear').addEventListener('click', () => { $('#bpm-min').value = ''; $('#bpm-max').value = ''; readRange(); });
+    $('#added-filter').addEventListener('change', (e) => { library.addedRange = { days: Number(e.target.value) || 0 }; library.renderRows(); });
     let searchTimer = null;
     $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => library.show(library.view), 200); });
     // raccourcis : Q / W lecture A / B, A / S cue A / B (hors champs de saisie)
