@@ -39,7 +39,7 @@ const hexToRgb = (hex) => {
 const RATING = [0, 51, 102, 153, 204, 255];
 
 /**
- * @param {string[]} playlistIds playlists à exporter (toutes les playlists mixarr si vide)
+ * @param {string[]} playlistIds playlists à exporter (toutes les playlists fadarr si vide)
  * @returns {{ xml: string, tracks: number, playlists: number, missing: string[] }}
  */
 function exportXml(playlistIds = []) {
@@ -47,7 +47,7 @@ function exportXml(playlistIds = []) {
   if (!settings.macPrefix) throw new Error('Indique d\'abord dans les Réglages le chemin du dossier musique sur ton Mac (ex. /Volumes/music/Electronic).');
   const wanted = playlistIds.length
     ? playlistIds.map((id) => store.playlist(id)).filter(Boolean)
-    : store.playlists().filter((p) => p.source === 'mixarr');
+    : store.playlists().filter((p) => p.source === 'fadarr');
   if (!wanted.length) throw new Error('Aucune playlist à exporter.');
 
   const ids = new Map(); // rel -> TrackID
@@ -137,7 +137,7 @@ function exportXml(playlistIds = []) {
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<DJ_PLAYLISTS Version="1.0.0">',
-    '  <PRODUCT Name="mixarr" Version="0.2.0" Company=""/>',
+    '  <PRODUCT Name="fadarr" Version="0.2.0" Company=""/>',
     `  <COLLECTION Entries="${ids.size}">`,
     ...lines,
     '  </COLLECTION>',

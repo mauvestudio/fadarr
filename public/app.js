@@ -1,4 +1,4 @@
-/* mixarr — interface : deux decks (Web Audio), mixeur, bibliothèque, playlists, cues / loops, import Traktor, export Rekordbox. */
+/* fadarr — interface : deux decks (Web Audio), mixeur, bibliothèque, playlists, cues / loops, import Traktor, export Rekordbox. */
 (function () {
   'use strict';
 
@@ -20,7 +20,7 @@
     'Gb': '2B', 'C#': '3B', 'D#': '5B', 'G#': '4B', 'A#': '6B', 'A#m': '3A', 'Gbm': '11A' };
   const camelotToOpen = (c) => { const m = /^(\d+)([AB])$/.exec(c || ''); if (!m) return ''; const n = ((Number(m[1]) + 4) % 12) + 1; return `${n}${m[2] === 'A' ? 'm' : 'd'}`; };
   let keyMode = 'musical';
-  try { keyMode = localStorage.getItem('mixarr-key') || 'musical'; } catch (e) { /* rien */ }
+  try { keyMode = localStorage.getItem('fadarr-key') || 'musical'; } catch (e) { /* rien */ }
   function showKey(k) {
     if (!k) return '';
     if (keyMode === 'musical') return k;
@@ -476,6 +476,12 @@
         b.title = c ? `${t(c.kind === 'loop' ? 'Hot loop {pad} à {time}' : 'Hot cue {pad} à {time}', { pad: PAD[n], time: fmt(c.start, true) })}${c.name ? ` « ${c.name} »` : ''}${t(' — Maj+clic ou clic droit : effacer')}` : t('Hot cue {pad} : clic pour poser (pendant une loop : hot loop)', { pad: PAD[n] });
         b.addEventListener('click', (ev) => this.padClick(n, ev));
         b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); this.padClick(n, ev); });
+        if (c) { // corbeille au coin (en plus de Maj+clic / clic droit) : efface le hot cue / hot loop
+          const x = document.createElement('span');
+          x.className = 'pad-x'; x.textContent = '×'; x.title = t('Effacer');
+          x.addEventListener('click', (ev) => { ev.stopPropagation(); this.cues = this.cues.filter((y) => !(y.num === n && y.kind !== 'memory')); this.saveCues(); });
+          b.appendChild(x);
+        }
         box.appendChild(b);
       }
     }
@@ -533,11 +539,11 @@
       zoom.addEventListener('pointermove', (ev) => { if (!drag) return; const w = zoom.getBoundingClientRect().width; this.seek(drag.pos - ((ev.clientX - drag.x) / w) * ZOOM_SECONDS); });
       zoom.addEventListener('pointerup', () => { if (drag && drag.was) this.play(); drag = null; });
       // glisser un morceau de la liste sur le deck
-      this.el.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-track')) { ev.preventDefault(); this.el.classList.add('drop'); } });
+      this.el.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-fadarr-track')) { ev.preventDefault(); this.el.classList.add('drop'); } });
       this.el.addEventListener('dragleave', () => this.el.classList.remove('drop'));
       this.el.addEventListener('drop', (ev) => {
         this.el.classList.remove('drop');
-        const data = ev.dataTransfer.getData('application/x-mixarr-track');
+        const data = ev.dataTransfer.getData('application/x-fadarr-track');
         if (data) { ev.preventDefault(); this.load(JSON.parse(data)); }
       });
     }
@@ -636,7 +642,7 @@
 
   // Style de forme d'onde : « bands » (3 bandes empilées) ou « rgb » (une couleur par colonne, façon Mixxx).
   let waveStyle = 'rgb';
-  try { waveStyle = localStorage.getItem('mixarr-wave') || 'rgb'; } catch (e) { /* rien */ }
+  try { waveStyle = localStorage.getItem('fadarr-wave') || 'rgb'; } catch (e) { /* rien */ }
   const hexRgb = (h) => { const n = parseInt(String(h).replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; };
   function waveColorsRGB() { const c = waveColors(); return { lo: hexRgb(c.lo), mi: hexRgb(c.mi), hi: hexRgb(c.hi) }; }
 
@@ -901,7 +907,7 @@
     $('#mx-skin-name').textContent = name === 'base' ? '' : name === 'rotary' ? 'ROTARY MIXER' : SKINS[name].toUpperCase();
     // une table rotative n'a pas de crossfader : on le remet au centre pour ne couper aucune voie
     if (name === 'rotary') { const x = $('#xfader'); if (Number(x.value) !== 0) { x.value = 0; xf.value = 0; applyCrossfader(); } }
-    try { localStorage.setItem('mixarr-skin', name); } catch (e) { /* stockage indisponible : valable pour cette visite */ }
+    try { localStorage.setItem('fadarr-skin', name); } catch (e) { /* stockage indisponible : valable pour cette visite */ }
   }
 
   function bindMixer() {
@@ -920,7 +926,7 @@
     x.addEventListener('input', () => { xf.value = Number(x.value); applyCrossfader(); });
     x.addEventListener('dblclick', () => { x.value = 0; xf.value = 0; applyCrossfader(); });
     let saved = 'base';
-    try { saved = localStorage.getItem('mixarr-skin') || 'base'; } catch (e) { /* rien */ }
+    try { saved = localStorage.getItem('fadarr-skin') || 'base'; } catch (e) { /* rien */ }
     applySkin(saved);
     $('#skin').addEventListener('change', (e) => applySkin(e.target.value));
     $('#master').addEventListener('input', (e) => { if (master) master.gain.value = Number(e.target.value); });
@@ -984,8 +990,8 @@
     },
 
     // ---------- arborescences repliables (dossiers du NAS, dossiers de playlists Traktor) ----------
-    open: (() => { try { return new Set(JSON.parse(localStorage.getItem('mixarr-open') || '[]')); } catch (e) { return new Set(); } })(),
-    saveOpen() { try { localStorage.setItem('mixarr-open', JSON.stringify([...this.open])); } catch (e) { /* rien */ } },
+    open: (() => { try { return new Set(JSON.parse(localStorage.getItem('fadarr-open') || '[]')); } catch (e) { return new Set(); } })(),
+    saveOpen() { try { localStorage.setItem('fadarr-open', JSON.stringify([...this.open])); } catch (e) { /* rien */ } },
 
     /**
      * Dessine un arbre : nœud = { key, label, count, children: [], select?: () => void, drop?: (paths) => void }.
@@ -1015,11 +1021,11 @@
           $('.caret', row).addEventListener('click', (ev) => { if (hasKids) { ev.stopPropagation(); toggle(); } });
           row.addEventListener('click', () => { if (n.select) n.select(); else if (hasKids) toggle(); });
           if (n.drop) {
-            row.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-track')) { ev.preventDefault(); row.classList.add('drop'); } });
+            row.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-fadarr-track')) { ev.preventDefault(); row.classList.add('drop'); } });
             row.addEventListener('dragleave', () => row.classList.remove('drop'));
             row.addEventListener('drop', (ev) => {
               row.classList.remove('drop');
-              const data = ev.dataTransfer.getData('application/x-mixarr-track');
+              const data = ev.dataTransfer.getData('application/x-fadarr-track');
               if (data) { ev.preventDefault(); n.drop([JSON.parse(data).path]); }
             });
           }
@@ -1060,7 +1066,7 @@
 
     async loadPlaylists() {
       this.playlists = await api('GET', '/api/playlists');
-      const mine = this.playlists.filter((p) => p.source === 'mixarr');
+      const mine = this.playlists.filter((p) => p.source === 'fadarr');
       const trak = this.playlists.filter((p) => p.source === 'traktor');
       const leaf = (p, editable) => ({
         key: `pl:${p.id}`, label: p.name, count: p.count, children: [],
@@ -1118,10 +1124,10 @@
       if (view.type === 'playlist') {
         const p = await api('GET', `/api/playlists/${view.id}`);
         this.current = p;
-        $('#list-title').textContent = p.source === 'mixarr' ? p.name : t('{src} · {name}', { src: p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor', name: p.name });
+        $('#list-title').textContent = p.source === 'fadarr' ? p.name : t('{src} · {name}', { src: p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor', name: p.name });
         const words = q.toLowerCase().split(/\s+/).filter(Boolean);
         this.rows = p.items.map((it, i) => ({ ...it, index: i })).filter((it) => !words.length || words.every((w) => `${it.artist} ${it.title} ${it.path}`.toLowerCase().includes(w)));
-        if (p.source !== 'mixarr') {
+        if (p.source !== 'fadarr') {
           actions.appendChild(button(t('Copier dans mes playlists'), async () => {
             const c = await api('POST', `/api/playlists/${p.id}/duplicate`, {});
             toast(t('Copie créée : {name}', { name: c.name })); await this.loadPlaylists(); this.show({ type: 'playlist', id: c.id });
@@ -1204,7 +1210,7 @@
 
     renderRows() {
       this.renderSortMarks();
-      this._editable = this.current && this.current.source === 'mixarr';
+      this._editable = this.current && this.current.source === 'fadarr';
       this._vrows = this.visibleRows();
       $('#empty').textContent = this._vrows.length ? '' : t(this.rows.length ? 'Aucun morceau dans cette plage de BPM.' : (this.view.type === 'playlist' ? 'Playlist vide : glisse des morceaux dessus depuis la bibliothèque.' : (nas && nas.tracks ? 'Aucun morceau ne correspond.' : 'Bibliothèque vide : clique sur « Analyser le NAS ».')));
       this.paintWindow();
@@ -1258,20 +1264,20 @@
       body.addEventListener('dblclick', (ev) => { const t = rowOf(ev.target); if (t && !t.missing) (decks.A.track && !decks.B.track ? decks.B : decks.A.playing && !decks.B.playing ? decks.B : decks.A).load(t); });
       body.addEventListener('dragstart', (ev) => {
         const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); const t = tr && this._vrows[Number(tr.dataset.vi)]; if (!t) return;
-        ev.dataTransfer.setData('application/x-mixarr-track', JSON.stringify(t));
-        ev.dataTransfer.setData('application/x-mixarr-index', String(t.index));
+        ev.dataTransfer.setData('application/x-fadarr-track', JSON.stringify(t));
+        ev.dataTransfer.setData('application/x-fadarr-index', String(t.index));
         ev.dataTransfer.effectAllowed = 'copyMove'; tr.classList.add('dragging');
       });
       body.addEventListener('dragend', (ev) => { const tr = ev.target.closest && ev.target.closest('tr'); if (tr) tr.classList.remove('dragging'); });
       const reorderable = () => this._editable && !$('#search').value.trim() && (this.sort.col === 'default' || (this.sort.col === 'index' && this.sort.dir > 0)) && !this.bpmRange.min && !this.bpmRange.max;
-      body.addEventListener('dragover', (ev) => { if (!reorderable()) return; const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); if (tr && ev.dataTransfer.types.includes('application/x-mixarr-index')) { ev.preventDefault(); $$('#tracks tbody tr.drop-above').forEach((r) => r.classList.remove('drop-above')); tr.classList.add('drop-above'); } });
+      body.addEventListener('dragover', (ev) => { if (!reorderable()) return; const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); if (tr && ev.dataTransfer.types.includes('application/x-fadarr-index')) { ev.preventDefault(); $$('#tracks tbody tr.drop-above').forEach((r) => r.classList.remove('drop-above')); tr.classList.add('drop-above'); } });
       body.addEventListener('dragleave', (ev) => { const tr = ev.target.closest && ev.target.closest('tr'); if (tr) tr.classList.remove('drop-above'); });
       body.addEventListener('drop', (ev) => {
         if (!reorderable()) return;
         const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); if (!tr) return;
         tr.classList.remove('drop-above');
         const t = this._vrows[Number(tr.dataset.vi)];
-        const from = Number(ev.dataTransfer.getData('application/x-mixarr-index'));
+        const from = Number(ev.dataTransfer.getData('application/x-fadarr-index'));
         const to = t.index;
         if (!Number.isInteger(from) || from === to) return;
         ev.preventDefault();
@@ -1383,7 +1389,7 @@
       const r = await res.json();
       if (!res.ok) throw new Error(r.error || t('Erreur {status}', { status: res.status }));
       modal(`<h2>${t('Import Traktor terminé')}</h2>
-        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans mixarr', { n: r.keptEdited })}` : ''}.</p>
+        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans fadarr', { n: r.keptEdited })}` : ''}.</p>
         ${r.unmatchedCount ? `<p class="muted">${t('{n} morceaux de la collection Traktor introuvables sur le NAS', { n: r.unmatchedCount })}${r.unmatchedCount > r.unmatched.length ? ` ${t('({n} premiers)', { n: r.unmatched.length })}` : ''} :</p><ul>${r.unmatched.map((u) => `<li>${esc(u.artist ? `${u.artist} - ${u.title}` : u.file)}</li>`).join('')}</ul>` : `<p>${t('Tous les morceaux ont été retrouvés.')}</p>`}
         <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
       await library.reload();
@@ -1400,7 +1406,7 @@
       const r = await res.json();
       if (!res.ok) throw new Error(r.error || t('Erreur {status}', { status: res.status }));
       modal(`<h2>${t('Import Rekordbox terminé')}</h2>
-        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans mixarr', { n: r.keptEdited })}` : ''}.</p>
+        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans fadarr', { n: r.keptEdited })}` : ''}.</p>
         ${r.unmatchedCount ? `<p class="muted">${t('{n} morceaux de la collection Rekordbox introuvables sur le NAS', { n: r.unmatchedCount })}${r.unmatchedCount > r.unmatched.length ? ` ${t('({n} premiers)', { n: r.unmatched.length })}` : ''} :</p><ul>${r.unmatched.map((u) => `<li>${esc(u.artist ? `${u.artist} - ${u.title}` : u.file)}</li>`).join('')}</ul>` : `<p>${t('Tous les morceaux ont été retrouvés.')}</p>`}
         <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
       await library.reload();
@@ -1413,7 +1419,7 @@
     const lists = library.playlists;
     if (!lists.length) { toast(t('Aucune playlist à exporter.')); return; }
     const cur = library.view.type === 'playlist' ? library.view.id : null;
-    const srcName = (p) => p.source === 'mixarr' ? p.name : `${p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor'} · ${p.name}`;
+    const srcName = (p) => p.source === 'fadarr' ? p.name : `${p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor'} · ${p.name}`;
     modal(`<h2>${t('Exporter')}</h2>
       <div class="small muted">${t('Format :')}</div>
       <div class="exp-fmt">
@@ -1424,7 +1430,7 @@
         <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
       </label>
       <div class="small muted">${t('Playlists à exporter :')}</div>
-      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'mixarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
+      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'fadarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
       <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
       <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="e-go">${t('Télécharger rekordbox.xml')}</button></div>`, (root) => {
       $('#e-go', root).addEventListener('click', async (ev) => {
@@ -1447,7 +1453,7 @@
           const noGrid = Number(res.headers.get('X-Mixarr-Nogrid')) || 0;
           const cues = Number(res.headers.get('X-Mixarr-Cues')) || 0;
           const warn = [];
-          if (noBpm) warn.push(`<li class="bad">${t('{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans mixarr et clique sur le BPM pour le poser.', { n: noBpm })}</li>`);
+          if (noBpm) warn.push(`<li class="bad">${t('{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans fadarr et clique sur le BPM pour le poser.', { n: noBpm })}</li>`);
           if (noGrid) warn.push(`<li>${t("{n} morceaux ont un BPM mais pas de grille précise : la grille est posée au premier temps connu. Vérifie-les dans Rekordbox (double-clic sur la grille pour recaler si besoin).", { n: noGrid })}</li>`);
           if (missing) warn.push(`<li>${t('{n} morceaux absents du NAS ont été ignorés.', { n: missing })}</li>`);
           modal(`<h2>${t('rekordbox.xml téléchargé')}</h2>
@@ -1475,25 +1481,25 @@
     $('#rbxml-input').addEventListener('change', (e) => importRekordbox(e.target.files[0]));
     // style de forme d'onde (RGB façon Mixxx / 3 bandes)
     const wsel = $('#wave'); wsel.value = waveStyle;
-    wsel.addEventListener('change', () => { waveStyle = wsel.value; try { localStorage.setItem('mixarr-wave', waveStyle); } catch (e) { /* rien */ } });
+    wsel.addEventListener('change', () => { waveStyle = wsel.value; try { localStorage.setItem('fadarr-wave', waveStyle); } catch (e) { /* rien */ } });
     // replier la zone des decks (plus de place pour la bibliothèque) et le panneau de gauche
     const deckBtn = $('#toggle-decks');
     const setDecks = (hidden) => { document.body.classList.toggle('no-decks', hidden); deckBtn.textContent = hidden ? '▼' : '▲'; deckBtn.title = window.I18N.t(hidden ? 'Afficher les decks' : 'Réduire les decks'); };
-    let decksHidden = false; try { decksHidden = localStorage.getItem('mixarr-decks') === '0'; } catch (e) { /* rien */ }
+    let decksHidden = false; try { decksHidden = localStorage.getItem('fadarr-decks') === '0'; } catch (e) { /* rien */ }
     setDecks(decksHidden);
-    deckBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-decks'); setDecks(h); try { localStorage.setItem('mixarr-decks', h ? '0' : '1'); } catch (e) { /* rien */ } });
+    deckBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-decks'); setDecks(h); try { localStorage.setItem('fadarr-decks', h ? '0' : '1'); } catch (e) { /* rien */ } });
     const sideBtn = $('#toggle-side');
     const setSide = (hidden) => { document.body.classList.toggle('no-side', hidden); sideBtn.textContent = hidden ? '▶' : '◀'; sideBtn.title = window.I18N.t(hidden ? 'Afficher le panneau' : 'Masquer le panneau'); };
-    let sideHidden = false; try { sideHidden = localStorage.getItem('mixarr-side') === '1'; } catch (e) { /* rien */ }
+    let sideHidden = false; try { sideHidden = localStorage.getItem('fadarr-side') === '1'; } catch (e) { /* rien */ }
     setSide(sideHidden);
-    sideBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-side'); setSide(h); try { localStorage.setItem('mixarr-side', h ? '1' : '0'); } catch (e) { /* rien */ } });
+    sideBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-side'); setSide(h); try { localStorage.setItem('fadarr-side', h ? '1' : '0'); } catch (e) { /* rien */ } });
     $('#new-pl').addEventListener('click', async () => {
       const name = prompt(window.I18N.t('Nom de la nouvelle playlist :')); if (!name) return;
       try { const p = await api('POST', '/api/playlists', { name }); await library.loadPlaylists(); $('#target-pl').value = p.id; library.show({ type: 'playlist', id: p.id }); } catch (e) { toast(e.message, 'error'); }
     });
     // barre de gauche : sections repliables, « tout replier »
     let closedSecs = [];
-    try { closedSecs = JSON.parse(localStorage.getItem('mixarr-secs') || '[]'); } catch (e) { /* rien */ }
+    try { closedSecs = JSON.parse(localStorage.getItem('fadarr-secs') || '[]'); } catch (e) { /* rien */ }
     $$('.side-head[data-sec]').forEach((h) => {
       const box = $(`#${h.dataset.sec}`);
       const set = (closed) => { box.hidden = closed; $('.sec .caret', h).classList.toggle('open', !closed); };
@@ -1501,7 +1507,7 @@
       $('.sec', h).addEventListener('click', () => {
         const closed = !box.hidden; set(closed);
         closedSecs = closed ? [...new Set([...closedSecs, h.dataset.sec])] : closedSecs.filter((x) => x !== h.dataset.sec);
-        try { localStorage.setItem('mixarr-secs', JSON.stringify(closedSecs)); } catch (e) { /* rien */ }
+        try { localStorage.setItem('fadarr-secs', JSON.stringify(closedSecs)); } catch (e) { /* rien */ }
       });
     });
     $$('.fold-all').forEach((b) => b.addEventListener('click', () => {
@@ -1515,7 +1521,7 @@
     $$('#tracks th[data-sort]').forEach((th) => th.addEventListener('click', (ev) => {
       if (th.dataset.sort === 'key' && ev.shiftKey) {
         keyMode = { musical: 'camelot', camelot: 'open', open: 'musical' }[keyMode];
-        try { localStorage.setItem('mixarr-key', keyMode); } catch (e) { /* rien */ }
+        try { localStorage.setItem('fadarr-key', keyMode); } catch (e) { /* rien */ }
         decks.A.renderInfo(); decks.B.renderInfo();
         library.renderRows(); return;
       }
@@ -1563,5 +1569,5 @@
   library.initList();
   refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
   requestAnimationFrame(frame);
-  window.mixarr = { decks, library }; // pour le débogage dans la console
+  window.fadarr = { decks, library }; // pour le débogage dans la console
 })();

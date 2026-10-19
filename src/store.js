@@ -1,21 +1,22 @@
 /**
- * Base de mixarr : un fichier JSON (data/mixarr.json), écrit de façon atomique.
+ * Base de fadarr : un fichier JSON (data/fadarr.json), écrit de façon atomique.
  *
  * C'est le « format pivot » : Traktor et Rekordbox ne sont que des entrées / sorties.
  *   tracks    : { [chemin relatif au dossier musique] : { cues: [...], bpm, gridStart, key, color, rating, comment } }
  *               un cue = { id, kind: 'hot' | 'memory' | 'loop', num (0-7 : touche de hot cue, -1 sinon), start (s), end (s, loop), name, color ('#rrggbb') }
- *               edited : true dès que les cues ont été modifiés dans mixarr (un nouvel import Traktor ne les écrase plus)
- *   playlists : [{ id, name, folder ('Traktor / Techno' …), source ('mixarr' | 'traktor'), tracks: [chemin relatif] }]
+ *               edited : true dès que les cues ont été modifiés dans fadarr (un nouvel import Traktor ne les écrase plus)
+ *   playlists : [{ id, name, folder ('Traktor / Techno' …), source ('fadarr' | 'traktor'), tracks: [chemin relatif] }]
  *   settings  : { macPrefix, mp3OffsetMs }
  *
- * Les fichiers audio ne sont JAMAIS modifiés : tout ce que mixarr sait d'un morceau est ici.
+ * Les fichiers audio ne sont JAMAIS modifiés : tout ce que fadarr sait d'un morceau est ici.
  */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const FILE = path.join(DATA_DIR, 'mixarr.json');
+const FILE = path.join(DATA_DIR, 'fadarr.json');
+const LEGACY_FILE = path.join(DATA_DIR, 'mixarr.json'); // ancienne base (avant le renommage) : lue une fois puis réécrite en fadarr.json
 
 const DEFAULT_SETTINGS = {
   macPrefix: '',       // chemin du dossier musique tel que le Mac le voit (ex. /Volumes/music/Electronic) : sert à l'export Rekordbox
@@ -26,18 +27,21 @@ let db = { version: 1, tracks: {}, playlists: [], settings: { ...DEFAULT_SETTING
 let timer = null;
 
 function load() {
+  const src = fs.existsSync(FILE) ? FILE : (fs.existsSync(LEGACY_FILE) ? LEGACY_FILE : FILE);
   try {
-    const parsed = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(src, 'utf8'));
     db = {
       version: 1,
       tracks: parsed.tracks && typeof parsed.tracks === 'object' ? parsed.tracks : {},
-      playlists: Array.isArray(parsed.playlists) ? parsed.playlists : [],
+      // migration du renommage : les playlists perso portaient source 'mixarr', elles deviennent 'fadarr'
+      playlists: (Array.isArray(parsed.playlists) ? parsed.playlists : []).map((p) => (p && p.source === 'mixarr' ? { ...p, source: 'fadarr' } : p)),
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) }
     };
+    if (src === LEGACY_FILE) { try { writeNow(); console.log('↪︎ Base migrée de mixarr.json vers fadarr.json.'); } catch (_) { /* réécrite au prochain enregistrement */ } }
   } catch (e) {
     if (e.code !== 'ENOENT') {
-      const backup = `${FILE}.illisible-${Date.now()}`;
-      try { fs.copyFileSync(FILE, backup); } catch (_) { /* rien à sauver */ }
+      const backup = `${src}.illisible-${Date.now()}`;
+      try { fs.copyFileSync(src, backup); } catch (_) { /* rien à sauver */ }
       console.error(`⚠️ Base illisible (${e.message}) : copie gardée dans ${backup}, nouvelle base vide.`);
     }
   }
@@ -122,7 +126,7 @@ function playlist(id) {
   return db.playlists.find((p) => p.id === id) || null;
 }
 
-function createPlaylist({ name, folder = '', source = 'mixarr', tracks = [] }) {
+function createPlaylist({ name, folder = '', source = 'fadarr', tracks = [] }) {
   const p = { id: newId(), name: String(name || 'Nouvelle playlist').slice(0, 120), folder: String(folder || '').slice(0, 300), source, tracks: [...tracks] };
   db.playlists.push(p);
   save();
@@ -146,13 +150,13 @@ function deletePlaylist(id) {
   return db.playlists.length !== before;
 }
 
-/** Remplace les playlists d'une source importée (traktor, rekordbox…). Les playlists mixarr ne sont jamais touchées. */
+/** Remplace les playlists d'une source importée (traktor, rekordbox…). Les playlists fadarr ne sont jamais touchées. */
 function replaceSourcePlaylists(source, list) {
   db.playlists = db.playlists.filter((p) => p.source !== source).concat(list.map((p) => ({ id: newId(), source, ...p })));
   save();
 }
 
-/** Remplace les playlists importées depuis Traktor (les playlists mixarr ne sont jamais touchées). */
+/** Remplace les playlists importées depuis Traktor (les playlists fadarr ne sont jamais touchées). */
 function replaceTraktorPlaylists(list) {
   replaceSourcePlaylists('traktor', list);
 }

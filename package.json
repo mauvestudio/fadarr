@@ -1,5 +1,5 @@
 {
-  "name": "mixarr",
+  "name": "fadarr",
   "version": "0.5.0",
   "description": "Prepare DJ sets in your browser: two decks streaming from your NAS, playlists, hot cues and loops, Traktor import, Rekordbox export.",
   "main": "src/server.js",
@@ -28,6 +28,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mauvestudio/mixarr.git"
+    "url": "https://github.com/mauvestudio/fadarr.git"
   }
 }

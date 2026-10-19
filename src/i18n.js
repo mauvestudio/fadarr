@@ -8,7 +8,7 @@ const EN = {
   'NAS déconnecté : reconnecte-le avec le bouton en haut.': 'NAS disconnected: reconnect it with the button at the top.',
   'Morceau inconnu de la bibliothèque.': 'Track not found in the library.',
   'Playlist introuvable.': 'Playlist not found.',
-  'Les playlists Traktor sont en lecture seule : fais-en une copie mixarr pour la modifier.': 'Traktor playlists are read-only: make a mixarr copy to edit it.',
+  'Les playlists Traktor sont en lecture seule : fais-en une copie fadarr pour la modifier.': 'Traktor playlists are read-only: make a fadarr copy to edit it.',
   'Les playlists Traktor se mettent à jour en réimportant collection.nml.': 'Traktor playlists update when you re-import collection.nml.',
   'Fichier vide.': 'Empty file.',
   "Analyse d'abord ta bibliothèque (bouton « Analyser le NAS ») : l'import retrouve les morceaux du NAS d'après la collection Traktor.": 'Scan your library first (“Scan NAS” button): the import matches Traktor tracks to files on the NAS.',

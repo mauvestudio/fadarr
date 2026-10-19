@@ -76,7 +76,7 @@ function buildMatcher() {
 // Lecture du NML
 // ---------------------------------------------------------------------------
 
-/** Cues Traktor -> cues mixarr (+ début de grille, en secondes). */
+/** Cues Traktor -> cues fadarr (+ début de grille, en secondes). */
 function convertCues(cueList) {
   const cues = [];
   let gridStart = null;
@@ -121,8 +121,8 @@ function walkPlaylists(node, folderPath, out) {
 }
 
 /**
- * Importe un collection.nml : met à jour les cues / BPM des morceaux retrouvés (sauf ceux déjà modifiés dans mixarr)
- * et remplace les playlists « Traktor » de mixarr.
+ * Importe un collection.nml : met à jour les cues / BPM des morceaux retrouvés (sauf ceux déjà modifiés dans fadarr)
+ * et remplace les playlists « Traktor » de fadarr.
  * @returns rapport { entries, matched, unmatched: [{artist,title,file}], playlists, playlistTracks, playlistMissing, cuesImported }
  */
 function importNml(xml) {

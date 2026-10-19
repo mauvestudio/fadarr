@@ -1,5 +1,5 @@
 /**
- * mixarr : préparation de sets DJ dans le navigateur.
+ * fadarr : préparation de sets DJ dans le navigateur.
  * Écoute sur deux decks depuis le NAS, playlists, cues et loops, import Traktor (collection.nml), export Rekordbox (rekordbox.xml).
  *
  * Variables d'environnement :
@@ -36,7 +36,7 @@ app.use((req, res, next) => {
     const [u, ...rest] = Buffer.from(value, 'base64').toString().split(':');
     if (same(u, AUTH_USER) && same(rest.join(':'), AUTH_PASSWORD)) return next();
   }
-  res.setHeader('WWW-Authenticate', 'Basic realm="mixarr"');
+  res.setHeader('WWW-Authenticate', 'Basic realm="fadarr"');
   return res.status(401).send('Authentification requise');
 });
 
@@ -94,7 +94,7 @@ app.get('/api/library', (req, res) => {
   res.json(list.map((e) => withInfo(e)));
 });
 
-/** Morceau + ce que mixarr en sait (cues, BPM, grille…). */
+/** Morceau + ce que fadarr en sait (cues, BPM, grille…). */
 function withInfo(e) {
   const info = store.trackInfo(e.path) || {};
   return { ...e, bpm: info.bpm || e.bpm, key: info.key || e.key, gridStart: info.gridStart ?? null, cueCount: (info.cues || []).length, rating: info.rating || 0, traktor: Boolean(info.traktor) };
@@ -180,13 +180,13 @@ app.post('/api/playlists', wrap(async (req, res) => {
 app.post('/api/playlists/:id/duplicate', wrap(async (req, res) => {
   const p = store.playlist(req.params.id);
   if (!p) throw httpError(404, 'Playlist introuvable.');
-  res.json(store.createPlaylist({ name: req.body?.name || `${p.name} (mixarr)`, folder: '', tracks: p.tracks }));
+  res.json(store.createPlaylist({ name: req.body?.name || `${p.name} (fadarr)`, folder: '', tracks: p.tracks }));
 }));
 
 app.put('/api/playlists/:id', wrap(async (req, res) => {
   const p = store.playlist(req.params.id);
   if (!p) throw httpError(404, 'Playlist introuvable.');
-  if (p.source === 'traktor') throw httpError(400, 'Les playlists Traktor sont en lecture seule : fais-en une copie mixarr pour la modifier.');
+  if (p.source === 'traktor') throw httpError(400, 'Les playlists Traktor sont en lecture seule : fais-en une copie fadarr pour la modifier.');
   res.json(store.updatePlaylist(p.id, req.body || {}));
 }));
 
@@ -245,7 +245,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: require('./i18n').tr
 app.get(/.*/, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 
 const server = app.listen(PORT, () => {
-  console.log(`🎛️  mixarr à l'écoute sur le port ${PORT} — musique : ${library.MUSIC_DIR}${AUTH_USER ? ' — mot de passe activé' : ''}`);
+  console.log(`🎛️  fadarr à l'écoute sur le port ${PORT} — musique : ${library.MUSIC_DIR}${AUTH_USER ? ' — mot de passe activé' : ''}`);
   if (!fs.existsSync(library.MUSIC_DIR)) console.log(`⚠️ Dossier musique introuvable : ${library.MUSIC_DIR}`);
 });
 

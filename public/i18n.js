@@ -1,11 +1,11 @@
 /**
- * mixarr — traductions (FR / EN).
+ * fadarr — traductions (FR / EN).
  *
  * Le texte source est le français : t('Texte français {var}', { var }) renvoie la traduction de la langue choisie
  * (ou le français s'il n'y en a pas encore). Pour ajouter une langue : copier le bloc « en » ci-dessous, traduire les
  * valeurs, et ajouter la langue à LANGS. Les textes fixes de la page (index.html) sont traduits au chargement par apply().
  *
- * mixarr — translations (FR / EN). The source text is French: t('French text {var}', { var }) returns the translation
+ * fadarr — translations (FR / EN). The source text is French: t('French text {var}', { var }) returns the translation
  * for the selected language (French when missing). To add a language: copy the "en" block, translate the values and add
  * the language to LANGS. Static page text (index.html) is translated on load by apply().
  */
@@ -159,7 +159,7 @@
       '{n} playlists ({entries} entrées)': '{n} playlists ({entries} entries)',
       '{n} absentes du NAS': '{n} not on NAS',
       '{n} cues et loops importés': '{n} cues and loops imported',
-      '{n} morceaux gardés tels que modifiés dans mixarr': '{n} tracks kept as edited in mixarr',
+      '{n} morceaux gardés tels que modifiés dans fadarr': '{n} tracks kept as edited in fadarr',
       '{n} morceaux de la collection Traktor introuvables sur le NAS': '{n} Traktor collection tracks not found on the NAS',
       '({n} premiers)': '(first {n})',
       'Tous les morceaux ont été retrouvés.': 'All tracks were found.',
@@ -207,7 +207,7 @@
       // ---------- rapport d'export ----------
       'rekordbox.xml téléchargé': 'rekordbox.xml downloaded',
       '{n} morceaux exportés — {g} avec grille de tempo, {c} avec cues/loops.': '{n} tracks exported — {g} with a beat grid, {c} with cues/loops.',
-      '{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans mixarr et clique sur le BPM pour le poser.': '{n} tracks with no BPM: CDJs will show no grid and no SYNC for them. Load them in mixarr and click the BPM to set it.',
+      '{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans fadarr et clique sur le BPM pour le poser.': '{n} tracks with no BPM: CDJs will show no grid and no SYNC for them. Load them in fadarr and click the BPM to set it.',
       "{n} morceaux ont un BPM mais pas de grille précise : la grille est posée au premier temps connu. Vérifie-les dans Rekordbox (double-clic sur la grille pour recaler si besoin).": '{n} tracks have a BPM but no precise grid: the grid is anchored on the first known beat. Check them in Rekordbox (double-click the grid to re-align if needed).',
       '{n} morceaux absents du NAS ont été ignorés.': '{n} tracks missing from the NAS were skipped.',
       'Tous les morceaux ont un BPM et une grille. ✔': 'Every track has a BPM and a grid. ✔',
@@ -217,7 +217,7 @@
   };
 
   let lang = 'fr';
-  try { lang = localStorage.getItem('mixarr-lang') || ''; } catch (e) { /* rien */ }
+  try { lang = localStorage.getItem('fadarr-lang') || ''; } catch (e) { /* rien */ }
   if (!LANGS[lang]) lang = /^fr\b/i.test(navigator.language || '') ? 'fr' : 'en';
 
   function t(fr, vars) {
@@ -244,7 +244,7 @@
 
   function setLang(l) {
     if (!LANGS[l]) return;
-    try { localStorage.setItem('mixarr-lang', l); } catch (e) { /* rien */ }
+    try { localStorage.setItem('fadarr-lang', l); } catch (e) { /* rien */ }
     location.reload();
   }
 

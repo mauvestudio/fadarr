@@ -1,10 +1,12 @@
 # Changelog
 
-Toutes les versions notables de mixarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
+Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
 ## [0.5.0] — 2026-10-19
-Inspiré de Mixxx (idées seulement ; Mixxx est GPL, mixarr reste MIT).
+Inspiré de Mixxx (idées seulement ; Mixxx est GPL, fadarr reste MIT).
+### Renommé
+- **Projet renommé `mixarr` → `fadarr`.** Les données existantes (`mixarr.json`, playlists perso) sont migrées automatiquement au premier lancement.
 ### Ajouté
 - **Forme d'onde RGB façon Mixxx** : une couleur par colonne mélangée selon l'énergie grave/médium/aigu. Sélecteur « Onde » (RGB / Bandes) dans l'en-tête.
 - **Détection de grille (beatgrid)** : BPM et 1er temps analysés dans le navigateur ; détection automatique au chargement d'un morceau sans grille importée.
@@ -41,7 +43,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
-[0.5.0]: https://github.com/mauvestudio/mixarr/releases/tag/v0.5.0
-[0.4.0]: https://github.com/mauvestudio/mixarr/releases/tag/v0.4.0
-[0.3.0]: https://github.com/mauvestudio/mixarr/releases/tag/v0.3.0
-[0.2.0]: https://github.com/mauvestudio/mixarr/releases/tag/v0.2.0
+[0.5.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.5.0
+[0.4.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.4.0
+[0.3.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.3.0
+[0.2.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.2.0

@@ -8,7 +8,7 @@
  *
  * Les chemins Rekordbox (du Mac) ne valent rien sur le NAS : chaque morceau est retrouvé dans la bibliothèque par son
  * nom de fichier (accents et ponctuation tolérés), puis par artiste + titre. Les introuvables sont listés dans le rapport.
- * Un morceau déjà modifié dans mixarr n'est pas écrasé.
+ * Un morceau déjà modifié dans fadarr n'est pas écrasé.
  */
 const path = require('path');
 const { XMLParser } = require('fast-xml-parser');
@@ -54,7 +54,7 @@ const toHex = (m) => {
   return `#${[r, g, b].map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0')).join('')}`;
 };
 
-/** POSITION_MARK Rekordbox -> cues mixarr. Type 0 = cue, 4 = loop ; Num -1 = memory, 0-7 = hot (A-H). Start/End en secondes. */
+/** POSITION_MARK Rekordbox -> cues fadarr. Type 0 = cue, 4 = loop ; Num -1 = memory, 0-7 = hot (A-H). Start/End en secondes. */
 function convertMarks(marks) {
   const cues = [];
   for (const m of arr(marks)) {
@@ -86,8 +86,8 @@ function walkPlaylists(node, folderPath, out, trackName) {
 }
 
 /**
- * Importe un rekordbox.xml : met à jour BPM / grille / cues des morceaux retrouvés (sauf ceux déjà modifiés dans mixarr)
- * et remplace les playlists « Rekordbox » de mixarr.
+ * Importe un rekordbox.xml : met à jour BPM / grille / cues des morceaux retrouvés (sauf ceux déjà modifiés dans fadarr)
+ * et remplace les playlists « Rekordbox » de fadarr.
  */
 function importXml(xml) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: false });
