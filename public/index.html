@@ -93,35 +93,39 @@
 <div id="toasts"></div>
 
 <template id="deck-tpl">
-  <div class="deck-top">
-    <span class="deck-letter"></span>
-    <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist muted"></div></div>
-    <div class="deck-nums"><button type="button" class="d-bpm" title="BPM — clic pour régler">—</button><span class="d-bpm-lab muted small">BPM</span><div class="d-key muted small"></div></div>
-  </div>
-  <canvas class="wave-zoom" height="90"></canvas>
-  <canvas class="wave-over" height="44"></canvas>
-  <div class="phase" title="Phase par rapport à l'autre deck (au centre : temps calés)"><span></span><i></i></div>
-  <div class="deck-time"><span class="d-pos">0:00.0</span><span class="d-rem muted">-0:00</span><span class="d-status muted small"></span></div>
-  <div class="deck-row">
-    <button type="button" class="tbtn cue" data-a="cue" title="CUE : à l'arrêt, pose le point de départ ; en lecture, y revient">CUE</button>
-    <button type="button" class="tbtn play" data-a="play" title="Lecture / pause">▶</button>
-    <div class="pitch">
-      <input type="range" class="d-pitch" min="-8" max="8" step="0.01" value="0" title="Tempo (double-clic : 0)">
-      <div class="pitch-info"><span class="d-pitchval">0.00 %</span><button type="button" class="mini d-range" title="Plage du tempo">±8</button><button type="button" class="mini d-sync" title="Caler le tempo sur l'autre deck">SYNC</button></div>
+  <div class="deck-body">
+    <div class="deck-top">
+      <span class="deck-letter"></span>
+      <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist muted"></div></div>
+      <div class="deck-nums"><button type="button" class="d-bpm" title="BPM — clic pour régler">—</button><span class="d-bpm-lab muted small">BPM</span><div class="d-key muted small"></div></div>
     </div>
+    <canvas class="wave-zoom" height="90"></canvas>
+    <canvas class="wave-over" height="44"></canvas>
+    <div class="phase" title="Phase par rapport à l'autre deck (au centre : temps calés)"><span></span><i></i></div>
+    <div class="deck-time"><span class="d-pos">0:00.0</span><span class="d-rem muted">-0:00</span><span class="d-status muted small"></span></div>
+    <div class="deck-row transport">
+      <button type="button" class="tbtn cue" data-a="cue" title="CUE : à l'arrêt, pose le point de départ ; en lecture, y revient">CUE</button>
+      <button type="button" class="tbtn play jog" data-a="play" title="Lecture / pause">▶</button>
+    </div>
+    <div class="pads"></div>
+    <div class="deck-row loops">
+      <button type="button" class="lbtn" data-a="in">IN</button>
+      <button type="button" class="lbtn" data-a="out">OUT</button>
+      <button type="button" class="lbtn" data-a="beat4" title="Loop de 4 temps (selon le BPM)">4</button>
+      <button type="button" class="lbtn" data-a="beat8" title="Loop de 8 temps">8</button>
+      <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
+      <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
+      <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
+      <button type="button" class="lbtn q on" data-a="q" title="Quantize : cues et loops calés sur la grille de tempo">Q</button>
+    </div>
+    <div class="memlist"></div>
   </div>
-  <div class="pads"></div>
-  <div class="deck-row loops">
-    <button type="button" class="lbtn" data-a="in">IN</button>
-    <button type="button" class="lbtn" data-a="out">OUT</button>
-    <button type="button" class="lbtn" data-a="beat4" title="Loop de 4 temps (selon le BPM)">4</button>
-    <button type="button" class="lbtn" data-a="beat8" title="Loop de 8 temps">8</button>
-    <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
-    <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
-    <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
-    <button type="button" class="lbtn q on" data-a="q" title="Quantize : cues et loops calés sur la grille de tempo">Q</button>
+  <div class="deck-side" title="Tempo (double-clic : 0)">
+    <span class="d-pitchval">0.00 %</span>
+    <input type="range" class="d-pitch" min="-8" max="8" step="0.01" value="0" title="Tempo (double-clic : 0)">
+    <button type="button" class="mini d-range" title="Plage du tempo">±8</button>
+    <button type="button" class="mini d-sync" title="Caler le tempo sur l'autre deck">SYNC</button>
   </div>
-  <div class="memlist"></div>
 </template>
 
 <script src="/i18n.js"></script>
