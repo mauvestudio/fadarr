@@ -22,9 +22,10 @@ mixarr est une petite appli web auto-hébergée (Node.js, sans framework ni comp
   tri sur toutes les colonnes, filtre de BPM, tonalité en notation musicale / Camelot / Open Key.
 - **Pensé pour préparer un set** : dès qu'un morceau est chargé, la liste met en lumière ce qui s'enchaîne avec lui
   (tonalité compatible sur la roue Camelot, BPM à ±3 % ou demi / double tempo) ; pré-écoute en un clic sans charger de deck.
-- **Import Traktor** : lit le `collection.nml` — playlists et dossiers, hot cues, memory cues, loops, BPM, grille, tonalité, note, commentaire.
-  Chaque morceau est retrouvé par son nom de fichier (accents et ponctuation tolérés), puis par artiste + titre ; les introuvables sont listés.
-  Un nouvel import n'écrase jamais les cues modifiés dans mixarr.
+- **Import Traktor ou Rekordbox** : lit un `collection.nml` Traktor ou un `rekordbox.xml` Rekordbox — playlists et dossiers,
+  hot cues, memory cues, loops, BPM, grille, tonalité. Chaque morceau est retrouvé par son nom de fichier (accents et ponctuation
+  tolérés), puis par artiste + titre ; les introuvables sont listés. Un nouvel import n'écrase jamais les cues modifiés dans mixarr.
+- **Fluide avec les grosses bibliothèques** : la liste est virtualisée (seules les lignes visibles sont dessinées), des milliers de morceaux défilent sans ralentir.
 - **Export Rekordbox** : `rekordbox.xml` avec playlists, cues (et leurs couleurs), loops, BPM et grille ; Rekordbox fait ensuite la clé.
 - **Sans risque** : le dossier musique est monté en lecture seule, mixarr ne modifie jamais un fichier audio. Tout ce qu'il sait est dans `data/mixarr.json`.
 - **Bouton NAS** : déconnecter le NAS depuis l'en-tête (bibliothèque et playlists restent consultables, les decks chargés continuent de jouer).

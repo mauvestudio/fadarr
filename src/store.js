@@ -146,10 +146,15 @@ function deletePlaylist(id) {
   return db.playlists.length !== before;
 }
 
+/** Remplace les playlists d'une source importée (traktor, rekordbox…). Les playlists mixarr ne sont jamais touchées. */
+function replaceSourcePlaylists(source, list) {
+  db.playlists = db.playlists.filter((p) => p.source !== source).concat(list.map((p) => ({ id: newId(), source, ...p })));
+  save();
+}
+
 /** Remplace les playlists importées depuis Traktor (les playlists mixarr ne sont jamais touchées). */
 function replaceTraktorPlaylists(list) {
-  db.playlists = db.playlists.filter((p) => p.source !== 'traktor').concat(list.map((p) => ({ id: newId(), source: 'traktor', ...p })));
-  save();
+  replaceSourcePlaylists('traktor', list);
 }
 
 function settings() {
@@ -170,5 +175,5 @@ load();
 
 module.exports = {
   DATA_DIR, trackInfo, updateTrack, cleanCues, playlists, playlist, createPlaylist, updatePlaylist, deletePlaylist,
-  replaceTraktorPlaylists, settings, updateSettings, flush, newId, all: () => db
+  replaceTraktorPlaylists, replaceSourcePlaylists, settings, updateSettings, flush, newId, all: () => db
 };

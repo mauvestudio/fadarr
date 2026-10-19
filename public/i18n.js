@@ -160,6 +160,18 @@
       'Coche au moins une playlist.': 'Tick at least one playlist.',
       'rekordbox.xml : {n} morceaux': 'rekordbox.xml: {n} tracks',
       '{n} absents du NAS ignorés': '{n} missing from NAS skipped',
+      // ---------- import Rekordbox + choix d'export ----------
+      'Importer Rekordbox': 'Import Rekordbox',
+      'Importer une collection Rekordbox (rekordbox.xml)': 'Import a Rekordbox collection (rekordbox.xml)',
+      'Importe un rekordbox.xml': 'Import a rekordbox.xml',
+      'Import Rekordbox terminé': 'Rekordbox import done',
+      '{src} · {name}': '{src} · {name}',
+      '{n} morceaux de la collection Rekordbox introuvables sur le NAS': '{n} tracks from the Rekordbox collection not found on the NAS',
+      'Exporter': 'Export',
+      'Format :': 'Format:',
+      'Rekordbox XML (platines via Rekordbox)': 'Rekordbox XML (players via Rekordbox)',
+      'Clé USB directe pour CDJ (bientôt)': 'Direct USB stick for CDJ (soon)',
+      'Bientôt : écriture directe de la clé USB, sans passer par Rekordbox.': 'Soon: write the USB stick directly, without going through Rekordbox.',
       // ---------- BPM éditable, SYNC, repli ----------
       'BPM — clic pour régler': 'BPM — click to set',
       'BPM du morceau (Entrée pour valider, Échap pour annuler)': 'Track BPM (Enter to confirm, Esc to cancel)',

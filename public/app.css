@@ -134,6 +134,18 @@ td.act button { margin-left: 3px; }
 .ld.a { background: var(--a); }
 .ld.b { background: var(--b); }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
+/* Liste virtualisée : largeurs de colonnes fixes (pas de tremblement au scroll) + cales invisibles */
+#tracks { table-layout: fixed; }
+#tracks th:nth-child(1), #tracks td:nth-child(1) { width: 42px; }
+#tracks th:nth-child(2), #tracks td:nth-child(2) { width: 20%; }
+#tracks th:nth-child(4), #tracks td:nth-child(4) { width: 74px; }
+#tracks th:nth-child(5), #tracks td:nth-child(5) { width: 76px; }
+#tracks th:nth-child(6), #tracks td:nth-child(6) { width: 66px; }
+#tracks th:nth-child(7), #tracks td:nth-child(7) { width: 98px; }
+#tracks th:nth-child(8), #tracks td:nth-child(8) { width: 52px; }
+#tracks th:nth-child(9), #tracks td:nth-child(9) { width: 146px; }
+tbody tr.vspacer, tbody tr.vspacer:hover { background: none; cursor: default; }
+tbody tr.vspacer td { padding: 0; border: 0; }
 
 /* ---------- Fenêtres, notifications ---------- */
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 0; width: min(560px, 92vw); }
@@ -145,6 +157,8 @@ dialog::backdrop { background: rgb(0 0 0 / .55); }
 .modal-body .row { display: flex; gap: 8px; justify-content: flex-end; }
 .modal-body .checks { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .modal-body .checks label { flex-direction: row; align-items: center; gap: 8px; }
+.modal-body .exp-fmt { display: flex; flex-direction: column; gap: 4px; }
+.modal-body .exp-fmt label { flex-direction: row; align-items: center; gap: 8px; }
 .modal-body ul { margin: 0; padding-left: 18px; max-height: 200px; overflow: auto; color: var(--muted); }
 #toasts { position: fixed; right: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 50; }
 .toast { background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--acc); border-radius: 8px; padding: 8px 12px; max-width: 360px; box-shadow: 0 8px 24px rgb(0 0 0 / .4); }

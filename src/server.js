@@ -210,6 +210,15 @@ app.post('/api/import/traktor', express.text({ type: '*/*', limit: '200mb' }), w
   res.json(report);
 }));
 
+app.post('/api/import/rekordbox', express.text({ type: '*/*', limit: '200mb' }), wrap(async (req, res) => {
+  const xml = String(req.body || '');
+  if (!xml.trim()) throw httpError(400, 'Fichier vide.');
+  if (!library.allPaths().length) throw httpError(400, 'Analyse d\'abord ta bibliothèque (bouton « Analyser le NAS ») : l\'import retrouve les morceaux du NAS d\'après la collection Rekordbox.');
+  const report = require('./rekordboxImport').importXml(xml);
+  console.log(`📥 Import Rekordbox : ${report.matched}/${report.entries} morceaux retrouvés, ${report.playlists} playlists, ${report.cuesImported} cues.`);
+  res.json(report);
+}));
+
 app.post('/api/export/rekordbox', wrap(async (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
   const rep = require('./rekordbox').exportXml(ids);

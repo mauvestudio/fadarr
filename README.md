@@ -22,9 +22,10 @@ mixarr is a small self-hosted web app (Node.js, no framework, no build step). It
   sort by any column, BPM range filter, key shown as musical / Camelot / Open Key.
 - **Built for set preparation** — once a track is loaded, the list highlights what mixes with it
   (Camelot-compatible key, BPM within 3 % or half/double tempo); one-click preview without loading a deck.
-- **Traktor import** — reads `collection.nml`: playlists and folders, hot cues, memory cues, loops, BPM, beat grid, key, rating, comment.
-  Tracks are matched to your files by name (accents and punctuation tolerated), then by artist + title; unmatched tracks are listed.
-  Re-importing never overwrites cues you edited in mixarr.
+- **Import from Traktor or Rekordbox** — read a Traktor `collection.nml` or a Rekordbox `rekordbox.xml`: playlists and folders,
+  hot cues, memory cues, loops, BPM, beat grid, key. Tracks are matched to your files by name (accents and punctuation tolerated),
+  then by artist + title; unmatched tracks are listed. Re-importing never overwrites cues you edited in mixarr.
+- **Fast with big libraries** — the track list is virtualised (only visible rows are drawn), so thousands of tracks scroll smoothly.
 - **Rekordbox export** — `rekordbox.xml` with playlists, cues (with colours), loops, BPM and grid; Rekordbox then builds the USB stick.
 - **Safe by design** — the music folder is mounted read-only: mixarr never modifies an audio file. Everything it knows lives in `data/mixarr.json`.
 - **NAS switch** — disconnect the NAS from the header (library and playlists stay browsable; loaded decks keep playing).

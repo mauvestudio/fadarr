@@ -943,30 +943,37 @@
       });
       if (mine.length) this.renderTree($('#pl-mine'), mine.map((p) => leaf(p, true)));
       else $('#pl-mine').innerHTML = `<div class="node fold muted">${esc(t('Aucune playlist : ＋ pour en créer une'))}</div>`;
-      // Traktor : « Traktor / NEXT / Sets » -> dossiers imbriqués
-      if (trak.length) {
-        const roots = [];
-        const folders = new Map();
-        const folderNode = (parts) => {
-          const key = `tk:${parts.join('/')}`;
-          if (folders.has(key)) return folders.get(key);
-          const n = { key, label: parts[parts.length - 1], children: [] };
-          folders.set(key, n);
-          (parts.length > 1 ? folderNode(parts.slice(0, -1)).children : roots).push(n);
-          return n;
-        };
-        for (const p of trak) {
-          const parts = p.folder.split(' / ').map((x) => x.trim()).filter(Boolean).filter((x, i) => !(i === 0 && x === 'Traktor'));
-          (parts.length ? folderNode(parts).children : roots).push(leaf(p, false));
-        }
-        for (const f of folders.values()) f.count = f.children.length;
-        this.renderTree($('#pl-traktor'), roots);
-      } else $('#pl-traktor').innerHTML = `<div class="node fold muted">${esc(t('Importe ta collection.nml'))}</div>`;
+      // Sources importées (Traktor, Rekordbox) : « Racine / Dossier / Sous-dossier » -> dossiers imbriqués
+      this.renderImported('#pl-traktor', trak, 'Traktor', 'tk', t('Importe ta collection.nml'));
+      this.renderImported('#pl-rekordbox', this.playlists.filter((p) => p.source === 'rekordbox'), 'Rekordbox', 'rb', t('Importe un rekordbox.xml'));
       const sel = $('#target-pl');
       const keep = sel.value;
       sel.innerHTML = '<option value="">—</option>' + mine.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
       if (mine.some((p) => p.id === keep)) sel.value = keep;
       this.markSel();
+    },
+
+    /** Arbre de playlists d'une source importée (lecture seule), dossiers imbriqués d'après le champ « folder ». */
+    renderImported(boxId, lists, rootFolder, keyPrefix, emptyMsg) {
+      const box = $(boxId);
+      if (!lists.length) { box.innerHTML = `<div class="node fold muted">${esc(emptyMsg)}</div>`; return; }
+      const leaf = (p) => ({ key: `pl:${p.id}`, label: p.name, count: p.count, children: [], select: () => this.show({ type: 'playlist', id: p.id }) });
+      const roots = [];
+      const folders = new Map();
+      const folderNode = (parts) => {
+        const key = `${keyPrefix}:${parts.join('/')}`;
+        if (folders.has(key)) return folders.get(key);
+        const n = { key, label: parts[parts.length - 1], children: [] };
+        folders.set(key, n);
+        (parts.length > 1 ? folderNode(parts.slice(0, -1)).children : roots).push(n);
+        return n;
+      };
+      for (const p of lists) {
+        const parts = String(p.folder || '').split(' / ').map((x) => x.trim()).filter(Boolean).filter((x, i) => !(i === 0 && x === rootFolder));
+        (parts.length ? folderNode(parts).children : roots).push(leaf(p));
+      }
+      for (const f of folders.values()) f.count = f.children.length;
+      this.renderTree(box, roots);
     },
 
     markSel() {
@@ -985,10 +992,10 @@
       if (view.type === 'playlist') {
         const p = await api('GET', `/api/playlists/${view.id}`);
         this.current = p;
-        $('#list-title').textContent = p.source === 'traktor' ? t('Traktor · {name}', { name: p.name }) : p.name;
+        $('#list-title').textContent = p.source === 'mixarr' ? p.name : t('{src} · {name}', { src: p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor', name: p.name });
         const words = q.toLowerCase().split(/\s+/).filter(Boolean);
         this.rows = p.items.map((it, i) => ({ ...it, index: i })).filter((it) => !words.length || words.every((w) => `${it.artist} ${it.title} ${it.path}`.toLowerCase().includes(w)));
-        if (p.source === 'traktor') {
+        if (p.source !== 'mixarr') {
           actions.appendChild(button(t('Copier dans mes playlists'), async () => {
             const c = await api('POST', `/api/playlists/${p.id}/duplicate`, {});
             toast(t('Copie créée : {name}', { name: c.name })); await this.loadPlaylists(); this.show({ type: 'playlist', id: c.id });
@@ -1010,6 +1017,7 @@
         if (view.type === 'recent') params.set('recent', '30');
         this.rows = await api('GET', `/api/library?${params}`);
       }
+      const wrap = $('.table-wrap'); if (wrap) wrap.scrollTop = 0; // nouvelle vue : on repart du haut
       this.renderRows();
     },
 
@@ -1046,67 +1054,102 @@
       $('#key-head').textContent = t({ musical: 'Ton.', camelot: 'Camelot', open: 'Open Key' }[keyMode]);
     },
 
+    // ---------- liste virtualisée : seules les lignes visibles sont dans le DOM (fluide même avec des milliers de morceaux) ----------
+    _rowH: 28,
+
+    /** HTML d'une ligne. `num` = numéro affiché (1-based). */
+    rowHtml(t, num) {
+      const ref = refDeck && refDeck.track && refDeck.track.path !== t.path ? refDeck : null;
+      const kc = ref ? keyCompat(t.key, ref.track.key) : 0;
+      const bc = ref ? bpmCompat(t.bpm, ref.bpm ? ref.bpm * ref.rate : null) : 0;
+      const cls = [t.missing ? 'missing' : '', kc && bc ? 'match' : '',
+        (refDeck && refDeck.track && refDeck.track.path === t.path) ? `loaded-${refDeck.id.toLowerCase()}` : ''].filter(Boolean).join(' ');
+      return `<td class="n">${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
+        + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
+        + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
+        + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
+        + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
+        + `<td class="vcls" hidden>${cls}</td>`;
+    },
+
     renderRows() {
-      const body = $('#tracks tbody');
-      body.innerHTML = '';
       this.renderSortMarks();
-      const editable = this.current && this.current.source === 'mixarr';
-      const reorderable = editable && !$('#search').value.trim() && (this.sort.col === 'default' || (this.sort.col === 'index' && this.sort.dir > 0)) && !this.bpmRange.min && !this.bpmRange.max;
-      const frag = document.createDocumentFragment();
-      const rows = this.visibleRows();
-      rows.forEach((t, i) => {
-        const tr = document.createElement('tr');
-        if (t.missing) tr.className = 'missing';
-        tr.draggable = !t.missing;
-        tr.dataset.path = t.path;
-        const ref = refDeck && refDeck.track && refDeck.track.path !== t.path ? refDeck : null;
-        const kc = ref ? keyCompat(t.key, ref.track.key) : 0;
-        const bc = ref ? bpmCompat(t.bpm, ref.bpm ? ref.bpm * ref.rate : null) : 0;
-        if (kc && bc) tr.classList.add('match');
-        if (refDeck && refDeck.track && refDeck.track.path === t.path) tr.classList.add(`loaded-${refDeck.id.toLowerCase()}`);
-        tr.innerHTML = `<td class="n">${(this.current ? t.index : i) + 1}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
-          + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
-          + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
-          + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
-          + `${editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`;
-        tr.addEventListener('dblclick', () => { if (!t.missing) (decks.A.track && !decks.B.track ? decks.B : decks.A.playing && !decks.B.playing ? decks.B : decks.A).load(t); });
-        tr.addEventListener('dragstart', (ev) => {
-          ev.dataTransfer.setData('application/x-mixarr-track', JSON.stringify(t));
-          ev.dataTransfer.setData('application/x-mixarr-index', String(t.index));
-          ev.dataTransfer.effectAllowed = 'copyMove';
-          tr.classList.add('dragging');
-        });
-        tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
-        if (reorderable) { // réordonner la playlist en glissant (ordre de la playlist, sans filtre)
-          tr.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-mixarr-index')) { ev.preventDefault(); tr.classList.add('drop-above'); } });
-          tr.addEventListener('dragleave', () => tr.classList.remove('drop-above'));
-          tr.addEventListener('drop', (ev) => {
-            tr.classList.remove('drop-above');
-            const from = Number(ev.dataTransfer.getData('application/x-mixarr-index'));
-            const to = t.index;
-            if (!Number.isInteger(from) || from === to) return;
-            ev.preventDefault();
-            const tracks = this.current.tracks.slice();
-            const [moved] = tracks.splice(from, 1);
-            tracks.splice(from < to ? to - 1 : to, 0, moved);
-            this.savePlaylist(tracks);
-          });
-        }
-        tr.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => decks[b.dataset.l].load(t)));
-        const pvb = tr.querySelector('[data-pv]');
-        if (pvb) pvb.addEventListener('click', () => preview.toggle(t));
-        const x = tr.querySelector('[data-x]');
-        if (x) x.addEventListener('click', () => { const tracks = this.current.tracks.slice(); tracks.splice(t.index, 1); this.savePlaylist(tracks); });
-        const add = tr.querySelector('[data-add]');
-        if (add) add.addEventListener('click', () => {
+      this._editable = this.current && this.current.source === 'mixarr';
+      this._vrows = this.visibleRows();
+      $('#empty').textContent = this._vrows.length ? '' : t(this.rows.length ? 'Aucun morceau dans cette plage de BPM.' : (this.view.type === 'playlist' ? 'Playlist vide : glisse des morceaux dessus depuis la bibliothèque.' : (nas && nas.tracks ? 'Aucun morceau ne correspond.' : 'Bibliothèque vide : clique sur « Analyser le NAS ».')));
+      this.paintWindow();
+    },
+
+    /** Ne peuple le tableau qu'autour de la zone visible, avec deux cales (haut / bas) pour garder la bonne hauteur de scroll. */
+    paintWindow() {
+      const body = $('#tracks tbody');
+      const wrap = $('.table-wrap');
+      const rows = this._vrows || [];
+      const n = rows.length;
+      const h = this._rowH;
+      const vh = wrap.clientHeight || 500;
+      const first = Math.max(0, Math.floor(wrap.scrollTop / h) - 8);
+      const count = Math.ceil(vh / h) + 16;
+      const last = Math.min(n, first + count);
+      const top = first * h;
+      const bottom = Math.max(0, (n - last) * h);
+      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="10"></td></tr>` : '';
+      for (let i = first; i < last; i++) {
+        const tr = rows[i];
+        const num = (this.current ? tr.index : i) + 1;
+        html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}>${this.rowHtml(tr, num)}</tr>`;
+      }
+      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="10"></td></tr>`;
+      body.innerHTML = html;
+      // reporte les classes (match / loaded / missing) calculées dans rowHtml
+      $$('#tracks tbody tr[data-vi]').forEach((tr) => { const c = $('.vcls', tr); if (c) { if (c.textContent) tr.className = c.textContent; c.remove(); } });
+      if (!this._rowMeasured) { const r = $('#tracks tbody tr[data-vi]'); if (r && r.offsetHeight) { this._rowH = r.offsetHeight; this._rowMeasured = true; } }
+    },
+
+    /** Écouteurs posés une seule fois (délégation) : clics, glisser-déposer, scroll virtuel. */
+    initList() {
+      const wrap = $('.table-wrap');
+      const body = $('#tracks tbody');
+      let raf = null;
+      wrap.addEventListener('scroll', () => { if (raf) return; raf = requestAnimationFrame(() => { raf = null; this.paintWindow(); }); });
+      window.addEventListener('resize', () => this.paintWindow());
+      const rowOf = (el) => { const tr = el.closest && el.closest('tr[data-vi]'); return tr ? this._vrows[Number(tr.dataset.vi)] : null; };
+      body.addEventListener('click', (ev) => {
+        const t = rowOf(ev.target); if (!t) return;
+        const l = ev.target.closest('[data-l]'); if (l) { decks[l.dataset.l].load(t); return; }
+        if (ev.target.closest('[data-pv]')) { preview.toggle(t); return; }
+        if (ev.target.closest('[data-x]')) { const tracks = this.current.tracks.slice(); tracks.splice(t.index, 1); this.savePlaylist(tracks); return; }
+        if (ev.target.closest('[data-add]')) {
           const id = $('#target-pl').value;
           if (!id) { toast(window.I18N.t("Choisis d'abord une playlist dans « Ajouter à » (ou glisse le morceau sur une playlist à gauche).")); return; }
           this.addTo(id, [t.path]);
-        });
-        frag.appendChild(tr);
+        }
       });
-      body.appendChild(frag);
-      $('#empty').textContent = rows.length ? '' : t(this.rows.length ? 'Aucun morceau dans cette plage de BPM.' : (this.view.type === 'playlist' ? 'Playlist vide : glisse des morceaux dessus depuis la bibliothèque.' : (nas && nas.tracks ? 'Aucun morceau ne correspond.' : 'Bibliothèque vide : clique sur « Analyser le NAS ».')));
+      body.addEventListener('dblclick', (ev) => { const t = rowOf(ev.target); if (t && !t.missing) (decks.A.track && !decks.B.track ? decks.B : decks.A.playing && !decks.B.playing ? decks.B : decks.A).load(t); });
+      body.addEventListener('dragstart', (ev) => {
+        const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); const t = tr && this._vrows[Number(tr.dataset.vi)]; if (!t) return;
+        ev.dataTransfer.setData('application/x-mixarr-track', JSON.stringify(t));
+        ev.dataTransfer.setData('application/x-mixarr-index', String(t.index));
+        ev.dataTransfer.effectAllowed = 'copyMove'; tr.classList.add('dragging');
+      });
+      body.addEventListener('dragend', (ev) => { const tr = ev.target.closest && ev.target.closest('tr'); if (tr) tr.classList.remove('dragging'); });
+      const reorderable = () => this._editable && !$('#search').value.trim() && (this.sort.col === 'default' || (this.sort.col === 'index' && this.sort.dir > 0)) && !this.bpmRange.min && !this.bpmRange.max;
+      body.addEventListener('dragover', (ev) => { if (!reorderable()) return; const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); if (tr && ev.dataTransfer.types.includes('application/x-mixarr-index')) { ev.preventDefault(); $$('#tracks tbody tr.drop-above').forEach((r) => r.classList.remove('drop-above')); tr.classList.add('drop-above'); } });
+      body.addEventListener('dragleave', (ev) => { const tr = ev.target.closest && ev.target.closest('tr'); if (tr) tr.classList.remove('drop-above'); });
+      body.addEventListener('drop', (ev) => {
+        if (!reorderable()) return;
+        const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); if (!tr) return;
+        tr.classList.remove('drop-above');
+        const t = this._vrows[Number(tr.dataset.vi)];
+        const from = Number(ev.dataTransfer.getData('application/x-mixarr-index'));
+        const to = t.index;
+        if (!Number.isInteger(from) || from === to) return;
+        ev.preventDefault();
+        const tracks = this.current.tracks.slice();
+        const [moved] = tracks.splice(from, 1);
+        tracks.splice(from < to ? to - 1 : to, 0, moved);
+        this.savePlaylist(tracks);
+      });
     },
 
     async savePlaylist(tracks) {
@@ -1125,13 +1168,14 @@
     },
 
     updateCount(path, n) {
-      const row = this.rows.find((r) => r.path === path);
-      if (row) { row.cueCount = n; const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(8)`); if (tr) tr.textContent = n || ''; }
+      const row = this.rows.find((r) => r.path === path); if (row) row.cueCount = n;
+      const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.cueCount = n;
+      const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(8)`); if (tr) tr.textContent = n || '';
     },
 
     updateBpm(path, bpm) {
-      const row = this.rows.find((r) => r.path === path);
-      if (row) row.bpm = bpm;
+      const row = this.rows.find((r) => r.path === path); if (row) row.bpm = bpm;
+      const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.bpm = bpm;
     }
   };
 
@@ -1217,17 +1261,40 @@
     $('#nml-input').value = '';
   }
 
+  async function importRekordbox(file) {
+    if (!file) return;
+    toast(t('Import de {file}…', { file: file.name }));
+    try {
+      const text = await file.text();
+      const res = await fetch('/api/import/rekordbox', { method: 'POST', headers: { 'Content-Type': 'text/xml', 'X-Lang': window.I18N.lang }, body: text });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || t('Erreur {status}', { status: res.status }));
+      modal(`<h2>${t('Import Rekordbox terminé')}</h2>
+        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans mixarr', { n: r.keptEdited })}` : ''}.</p>
+        ${r.unmatchedCount ? `<p class="muted">${t('{n} morceaux de la collection Rekordbox introuvables sur le NAS', { n: r.unmatchedCount })}${r.unmatchedCount > r.unmatched.length ? ` ${t('({n} premiers)', { n: r.unmatched.length })}` : ''} :</p><ul>${r.unmatched.map((u) => `<li>${esc(u.artist ? `${u.artist} - ${u.title}` : u.file)}</li>`).join('')}</ul>` : `<p>${t('Tous les morceaux ont été retrouvés.')}</p>`}
+        <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
+      await library.reload();
+    } catch (e) { toast(t('Import impossible : {msg}', { msg: e.message }), 'error'); }
+    $('#rbxml-input').value = '';
+  }
+
   async function openExport() {
     const s = await api('GET', '/api/settings');
     const lists = library.playlists;
     if (!lists.length) { toast(t('Aucune playlist à exporter.')); return; }
     const cur = library.view.type === 'playlist' ? library.view.id : null;
-    modal(`<h2>${t('Exporter vers Rekordbox')}</h2>
+    const srcName = (p) => p.source === 'mixarr' ? p.name : `${p.source === 'rekordbox' ? 'Rekordbox' : 'Traktor'} · ${p.name}`;
+    modal(`<h2>${t('Exporter')}</h2>
+      <div class="small muted">${t('Format :')}</div>
+      <div class="exp-fmt">
+        <label><input type="radio" name="e-fmt" value="xml" checked> ${t('Rekordbox XML (platines via Rekordbox)')}</label>
+        <label class="muted" title="${t('Bientôt : écriture directe de la clé USB, sans passer par Rekordbox.')}"><input type="radio" name="e-fmt" value="usb" disabled> ${t('Clé USB directe pour CDJ (bientôt)')}</label>
+      </div>
       <label>${t('Chemin du dossier musique sur ton Mac')}
         <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
       </label>
       <div class="small muted">${t('Playlists à exporter :')}</div>
-      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'mixarr') ? 'checked' : ''}> ${esc(p.source === 'traktor' ? t('Traktor · {name}', { name: p.name }) : p.name)} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
+      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'mixarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
       <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
       <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="e-go">${t('Télécharger rekordbox.xml')}</button></div>`, (root) => {
       $('#e-go', root).addEventListener('click', async (ev) => {
@@ -1275,6 +1342,7 @@
     $('#settings-btn').addEventListener('click', () => openSettings().catch((e) => toast(e.message, 'error')));
     $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
     $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
+    $('#rbxml-input').addEventListener('change', (e) => importRekordbox(e.target.files[0]));
     // replier la zone des decks (plus de place pour la bibliothèque) et le panneau de gauche
     const deckBtn = $('#toggle-decks');
     const setDecks = (hidden) => { document.body.classList.toggle('no-decks', hidden); deckBtn.textContent = hidden ? '▼' : '▲'; deckBtn.title = window.I18N.t(hidden ? 'Afficher les decks' : 'Réduire les decks'); };
@@ -1358,6 +1426,7 @@
   bindMixer();
   bindNas();
   bindGlobal();
+  library.initList();
   refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
   requestAnimationFrame(frame);
   window.mixarr = { decks, library }; // pour le débogage dans la console

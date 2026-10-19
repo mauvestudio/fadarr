@@ -18,6 +18,7 @@
   <button type="button" id="toggle-decks" class="btn ghost icon" title="Réduire les decks" aria-label="Réduire les decks">▲</button>
   <span class="grow"></span>
   <label class="btn ghost" title="Importer ta collection Traktor (collection.nml)">Importer Traktor<input type="file" id="nml-input" accept=".nml,application/xml,text/xml" hidden></label>
+  <label class="btn ghost" title="Importer une collection Rekordbox (rekordbox.xml)">Importer Rekordbox<input type="file" id="rbxml-input" accept=".xml,application/xml,text/xml" hidden></label>
   <button type="button" id="export-btn" class="btn accent">Exporter vers Rekordbox</button>
   <label class="skin-pick small muted" title="Apparence du mixeur">Skin
     <select id="skin"><option value="base">Base</option><option value="analog">Analog</option><option value="rotary">Rotary</option></select>
@@ -66,6 +67,8 @@
     <div id="pl-mine" class="tree"></div>
     <div class="side-head" data-sec="pl-traktor"><span class="sec"><span class="caret open">▸</span>Traktor</span><button type="button" class="mini fold-all" data-target="pl-traktor" title="Tout replier">⊟</button></div>
     <div id="pl-traktor" class="tree"></div>
+    <div class="side-head" data-sec="pl-rekordbox"><span class="sec"><span class="caret open">▸</span>Rekordbox</span><button type="button" class="mini fold-all" data-target="pl-rekordbox" title="Tout replier">⊟</button></div>
+    <div id="pl-rekordbox" class="tree"></div>
   </aside>
   <main class="list">
     <div class="list-head">
