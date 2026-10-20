@@ -230,16 +230,21 @@
         this.track = full;
         this.buffer = buf;
         this.cues = full.cues || [];
-        this.peaks = computePeaks(buf);
         const firstHot = this.cues.find((c) => c.kind !== 'loop' && c.kind === 'memory') || null;
         this.mainCue = firstHot ? firstHot.start : 0;
         this.offset = this.mainCue;
-        this.status('');
+        // Le morceau est jouable tout de suite ; l'analyse (onde + grille) tourne dans un worker et ne gèle plus l'interface.
+        this.status(t('Analyse…'));
         this.renderInfo(); this.renderPads(); this.renderMem(); this.renderLoopBtns();
         refDeck = this; library.renderRows(); // la liste montre ce qui s'enchaîne avec ce morceau
-        if (!this.bpm) setTimeout(() => { // aucune grille importée : on l'analyse (comme Mixxx), sans marquer le morceau « modifié »
-          if (this.buffer === buf && !this.bpm) { const r = detectBpmGrid(buf); if (r) this.saveMeta({ bpm: r.bpm, gridStart: r.gridStart }, true); }
-        }, 30);
+        const mono = toMono(buf);
+        const peaks = await analyze(mono, buf.sampleRate, buf.duration, !this.bpm, (grid) => {
+          // grille détectée (comme Mixxx) : posée sans marquer le morceau « modifié », si rien n'a changé entre-temps
+          if (token === this.loading && this.buffer === buf && !this.bpm && grid) this.saveMeta({ bpm: grid.bpm, gridStart: grid.gridStart }, true);
+        });
+        if (token !== this.loading) return;
+        this.peaks = peaks; // le dessin se fait au rythme de la boucle d'animation
+        this.status('');
       } catch (e) {
         if (token !== this.loading) return;
         this.status('');
@@ -365,7 +370,7 @@
       if (!this.buffer || !this.track) return;
       if (a === 'tap') return this.tapTempo();
       if (a === 'auto') {
-        const r = detectBpmGrid(this.buffer);
+        const r = detectBpmGrid(toMono(this.buffer), this.buffer.sampleRate, this.buffer.duration);
         if (!r) { toast(t('Détection impossible sur ce morceau.')); return; }
         this.saveMeta({ bpm: r.bpm, gridStart: r.gridStart });
         toast(t('Détecté : {bpm} BPM', { bpm: r.bpm.toFixed(2) }));
@@ -602,19 +607,17 @@
    * et celui des graves (< ~250 Hz), des médiums et des aigus (> ~2,5 kHz), séparés par de simples filtres du 1er ordre.
    * Calcul unique au chargement du morceau (~0,2 s pour 8 min).
    */
-  function computePeaks(buf) {
-    const sr = buf.sampleRate;
-    const n = Math.ceil(buf.duration * PEAK_RATE);
+  function computePeaks(mono, sr, duration) {
+    const n = Math.ceil(duration * PEAK_RATE);
     const max = new Float32Array(n); const lo = new Float32Array(n); const mi = new Float32Array(n); const hi = new Float32Array(n);
-    const c0 = buf.getChannelData(0); const c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
     const aL = Math.exp(-2 * Math.PI * 250 / sr); const aH = Math.exp(-2 * Math.PI * 2500 / sr);
     let l1 = 0, l2 = 0, h1 = 0, h2 = 0;
     const step = sr / PEAK_RATE;
     for (let i = 0; i < n; i++) {
-      const a = Math.floor(i * step); const b = Math.min(c0.length, Math.floor((i + 1) * step));
+      const a = Math.floor(i * step); const b = Math.min(mono.length, Math.floor((i + 1) * step));
       let m = 0, ml = 0, mm = 0, mh = 0;
       for (let j = a; j < b; j++) {
-        const x = (c0[j] + c1[j]) * 0.5;
+        const x = mono[j];
         l1 = (1 - aL) * x + aL * l1; l2 = (1 - aL) * l1 + aL * l2;   // passe-bas 2 pôles : graves
         h1 = (1 - aH) * x + aH * h1; h2 = (1 - aH) * h1 + aH * h2;   // passe-bas 2,5 kHz ; aigus = reste
         const high = x - h2; const mid = h2 - l2;
@@ -635,17 +638,15 @@
    * enveloppe d'attaques sur les graves -> autocorrélation pour le BPM (70-180) -> phase pour caler le 1er temps.
    * Analyse les ~2 premières minutes. Renvoie { bpm, gridStart } ou null.
    */
-  function detectBpmGrid(buf) {
-    const sr = buf.sampleRate;
-    const N = Math.floor(Math.min(buf.duration, 120) * sr);
-    const c0 = buf.getChannelData(0); const c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
+  function detectBpmGrid(mono, sr, duration) {
+    const N = Math.floor(Math.min(duration, 120) * sr);
     const hop = 512; const fps = sr / hop; const nf = Math.floor(N / hop);
     if (nf < 40) return null;
     const env = new Float32Array(nf);
     const aL = Math.exp(-2 * Math.PI * 200 / sr); let lp1 = 0, lp2 = 0, prev = 0;
     for (let f = 0; f < nf; f++) {
       let e = 0; const a = f * hop; const b = a + hop;
-      for (let j = a; j < b; j++) { const x = (c0[j] + c1[j]) * 0.5; lp1 = (1 - aL) * x + aL * lp1; lp2 = (1 - aL) * lp1 + aL * lp2; e += lp2 * lp2; }
+      for (let j = a; j < b; j++) { const x = mono[j]; lp1 = (1 - aL) * x + aL * lp1; lp2 = (1 - aL) * lp1 + aL * lp2; e += lp2 * lp2; }
       const v = Math.sqrt(e / hop); env[f] = Math.max(0, v - prev); prev = v; // flux d'énergie des graves (attaques)
     }
     let mx = 0; for (let i = 0; i < nf; i++) if (env[i] > mx) mx = env[i];
@@ -673,6 +674,55 @@
     const beatS = 60 / bpm;
     const gridStart = (fit.off / fps) % beatS;
     return { bpm: Math.round(bpm * 100) / 100, gridStart: Math.round(gridStart * 1000) / 1000 };
+  }
+
+  /** Mixe un AudioBuffer en un seul canal (nouveau tableau, laisse le buffer de lecture intact). */
+  function toMono(buf) {
+    const n = buf.length; const c0 = buf.getChannelData(0);
+    if (buf.numberOfChannels < 2) return c0.slice(0);
+    const c1 = buf.getChannelData(1); const m = new Float32Array(n);
+    for (let i = 0; i < n; i++) m[i] = (c0[i] + c1[i]) * 0.5;
+    return m;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Analyse hors du fil principal (Web Worker) : forme d'onde + détection de grille.
+  // Le gros du calcul (filtres, autocorrélation) ne gèle plus l'interface au chargement.
+  // Les deux fonctions ci-dessus sont ré-injectées telles quelles dans le worker.
+  // ---------------------------------------------------------------------------
+  const ANALYZER_SRC = `const PEAK_RATE=${PEAK_RATE};\n${computePeaks.toString()}\n${detectBpmGrid.toString()}\n`
+    + `self.onmessage=function(e){var d=e.data;var p=computePeaks(d.mono,d.sr,d.duration);`
+    + `self.postMessage({id:d.id,kind:'peaks',peaks:p},[p.max.buffer,p.lo.buffer,p.mi.buffer,p.hi.buffer]);`
+    + `if(d.detect){var g=detectBpmGrid(d.mono,d.sr,d.duration);self.postMessage({id:d.id,kind:'grid',grid:g});}};`;
+  let analyzer = null; // null = pas encore créé ; false = indisponible (secours synchrone) ; sinon le Worker
+  const analyzerReqs = new Map(); let analyzerId = 0;
+  function getAnalyzer() {
+    if (analyzer !== null) return analyzer;
+    try {
+      analyzer = new Worker(URL.createObjectURL(new Blob([ANALYZER_SRC], { type: 'text/javascript' })));
+      analyzer.onmessage = (e) => {
+        const r = analyzerReqs.get(e.data.id); if (!r) return;
+        if (e.data.kind === 'peaks') { r.resolve(e.data.peaks); if (!r.detect) analyzerReqs.delete(e.data.id); }
+        else { if (r.onGrid) r.onGrid(e.data.grid); analyzerReqs.delete(e.data.id); }
+      };
+      analyzer.onerror = () => { analyzer = false; for (const [id, r] of [...analyzerReqs]) { analyzerReqs.delete(id); r.fallback(); } };
+    } catch (e) { analyzer = false; }
+    return analyzer;
+  }
+  /** Calcule les pics (promesse) et, si detect, appelle onGrid(grille) ; retombe sur le fil principal si le worker est indisponible. */
+  function analyze(mono, sr, duration, detect, onGrid) {
+    return new Promise((resolve) => {
+      const fallback = () => { resolve(computePeaks(mono, sr, duration)); if (detect && onGrid) onGrid(detectBpmGrid(mono, sr, duration)); };
+      const w = getAnalyzer();
+      if (!w) { fallback(); return; }
+      const id = ++analyzerId;
+      let done = false;
+      const req = { detect, onGrid, resolve: (p) => { done = true; resolve(p); }, fallback: () => { if (!done) fallback(); } };
+      analyzerReqs.set(id, req);
+      // garde-fou : si le worker ne répond pas (cas rare), on calcule sur le fil principal
+      setTimeout(() => { if (analyzerReqs.has(id)) { analyzerReqs.delete(id); req.fallback(); } }, 15000);
+      w.postMessage({ id, mono, sr, duration, detect }); // mono conservé côté principal (pas de transfert) : secours possible
+    });
   }
 
   /** Couleurs des 3 bandes (réglables par skin : --wf-lo / --wf-mi / --wf-hi). */
@@ -1284,6 +1334,9 @@
             toast(t('Copie créée : {name}', { name: c.name })); await this.loadPlaylists(); this.show({ type: 'playlist', id: c.id });
           }));
         } else {
+          this._orderBtn = button(t('Figer cet ordre'), () => this.freezeOrder());
+          this._orderBtn.title = t('Enregistre l’ordre d’affichage actuel (tri) comme ordre de la playlist');
+          actions.appendChild(this._orderBtn);
           actions.appendChild(button(t('Renommer'), async () => {
             const name = prompt(t('Nouveau nom :'), p.name); if (!name) return;
             await api('PUT', `/api/playlists/${p.id}`, { name }); await this.loadPlaylists(); this.show(this.view);
@@ -1458,6 +1511,22 @@
 
     async savePlaylist(tracks) {
       try { await api('PUT', `/api/playlists/${this.current.id}`, { tracks }); await this.loadPlaylists(); await this.show(this.view); } catch (e) { toast(e.message, 'error'); }
+    },
+
+    /** Enregistre l'ordre d'affichage actuel (tri par colonne) comme ordre de la playlist, façon Traktor. */
+    async freezeOrder() {
+      if (!this.current || this.current.source !== 'fadarr') return;
+      if ($('#search').value.trim() || this.bpmRange.min || this.bpmRange.max || this.addedRange.days) {
+        toast(t('Enlève d’abord la recherche et les filtres : l’ordre se fige sur tous les morceaux.')); return;
+      }
+      const order = this.visibleRows().map((r) => r.path);
+      if (!order.length) return;
+      try {
+        await api('PUT', `/api/playlists/${this.current.id}`, { tracks: order });
+        this.sort = { col: 'default', dir: 1 }; // on revient à l'ordre manuel (= le nouvel ordre figé)
+        await this.loadPlaylists(); await this.show(this.view);
+        toast(t('Ordre de la playlist enregistré.'));
+      } catch (e) { toast(e.message, 'error'); }
     },
 
     /** Pose la note (0-255) d'un morceau et rafraîchit la ligne + les decks. */

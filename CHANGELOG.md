@@ -3,6 +3,13 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.7.0] — 2026-10-20
+### Ajouté
+- **Figer l'ordre d'une playlist** (façon Traktor) : trie une playlist par colonne (#, BPM, tonalité, note…) puis « Figer cet ordre » enregistre cet ordre comme nouvel ordre de la playlist. (La colonne # reste le numéro de piste : clic = ordre de la playlist, et le glisser-déposer reste dispo dans cet ordre.)
+### Performance
+- **Analyse hors du fil principal** : la forme d'onde et la détection de beatgrid tournent désormais dans un Web Worker. Charger un morceau ne gèle plus l'interface — avant, chaque morceau sans BPM déclenchait une analyse de ~2 min d'audio sur le fil principal. Secours synchrone automatique si le worker est indisponible.
+- *EN: freeze a playlist's order from any column sort (Traktor-style); waveform + beatgrid analysis moved to a Web Worker so loading a track no longer freezes the UI (with a synchronous fallback).*
+
 ## [0.6.2] — 2026-10-20
 Bibliothèque façon Traktor.
 ### Ajouté
