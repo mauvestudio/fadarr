@@ -3,6 +3,18 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.6.0] — 2026-10-20
+Playlists façon Mixxx / Traktor (idées seulement ; Mixxx et Traktor restent la propriété de leurs auteurs, fadarr reste MIT).
+### Ajouté
+- **Couleurs Traktor importées** : la pastille de couleur (INFO COLOR 1–7) de chaque morceau est reprise et affichée comme un liseré coloré à gauche de la ligne.
+- **Notes (étoiles) dans la bibliothèque** : la note Traktor (RANKING) s'affiche en ★ (0–5) ; colonne triable. Les commentaires Traktor étaient déjà importés.
+- **Clic droit sur les playlists** (façon Traktor) : Ouvrir, Renommer, Dupliquer, Nouvelle catégorie, Sortir de la catégorie, Supprimer. Sur une catégorie : Nouvelle playlist ici, Renommer, Dissoudre. Sur une playlist Traktor/Rekordbox : Copier dans mes playlists.
+- **Glisser une playlist dans un dossier Traktor/Rekordbox** : la range dans une catégorie du même nom (ex. glisser « Otawa » dans « Next »).
+- **Export vers Traktor (`collection.nml` ré-importable)** : réécrit toutes les playlists fadarr avec leurs catégories (→ dossiers Traktor), couleurs, notes, BPM, grille et cues. Les morceaux venus de Traktor retrouvent leur emplacement d'origine ; ceux ajoutés seulement dans fadarr sont ignorés. **Ajout non destructif** : à importer dans Traktor (clic droit sur « Playlists » > Import…), jamais à substituer au `collection.nml` d'origine.
+### Note sur la rétro-compatibilité
+- fadarr ne voit qu'une **copie** téléversée de `collection.nml` : il ne réécrit jamais la base Traktor en direct (ce serait destructif). La rétro-compatibilité passe par l'export ci-dessus, à ré-importer dans Traktor.
+- *EN: imported Traktor track colors (row accent) and ratings (★ column, sortable); Traktor-style right-click menu on playlists & categories; drop a playlist onto a Traktor/Rekordbox folder to file it under a matching category; Export to Traktor as a re-importable collection.nml (categories→folders, colors, ratings, BPM, grid, cues) — a non-destructive add-on, never a replacement for the original. fadarr only ever reads an uploaded copy of collection.nml, so it never writes Traktor's live database.*
+
 ## [0.5.0] — 2026-10-19
 Inspiré de Mixxx (idées seulement ; Mixxx est GPL, fadarr reste MIT).
 ### Renommé

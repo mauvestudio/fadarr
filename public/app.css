@@ -154,8 +154,20 @@ td.act button { margin-left: 3px; }
 #tracks th:nth-child(6), #tracks td:nth-child(6) { width: 62px; }
 #tracks th:nth-child(7), #tracks td:nth-child(7) { width: 90px; }
 #tracks th:nth-child(8), #tracks td:nth-child(8) { width: 48px; }
-#tracks th:nth-child(9), #tracks td:nth-child(9) { width: 68px; }
-#tracks th:nth-child(10), #tracks td:nth-child(10) { width: 140px; }
+#tracks th:nth-child(9), #tracks td:nth-child(9) { width: 60px; }   /* ★ note */
+#tracks th:nth-child(10), #tracks td:nth-child(10) { width: 68px; } /* Ajouté */
+#tracks th:nth-child(11), #tracks td:nth-child(11) { width: 140px; } /* actions */
+td.rate, th.rate { text-align: center; }
+.stars { color: #f5c542; letter-spacing: -1px; white-space: nowrap; font-size: 12px; }
+.stars .e { color: #3a3a44; }
+
+/* Menu contextuel (clic droit) façon Traktor */
+.ctx-menu { position: fixed; z-index: 1000; min-width: 190px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.ctx-item { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text); padding: 7px 10px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+.ctx-item:hover { background: var(--acc); color: var(--acc-ink); }
+.ctx-item.danger { color: #ff7a7a; }
+.ctx-item.danger:hover { background: #a23030; color: #fff; }
+.ctx-sep { height: 1px; background: var(--line); margin: 4px 2px; }
 tbody tr.vspacer, tbody tr.vspacer:hover { background: none; cursor: default; }
 tbody tr.vspacer td { padding: 0; border: 0; }
 
@@ -436,5 +448,5 @@ tr.loaded-b td:nth-child(3) { color: var(--b); }
   .tbtn { height: 34px; }
   .list-head { gap: 6px; }
   .bpm-filter input { width: 52px; }
-  td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7), td:nth-child(8), th:nth-child(8), td:nth-child(9), th:nth-child(9) { display: none; }
+  td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7), td:nth-child(8), th:nth-child(8), td:nth-child(9), th:nth-child(9), td:nth-child(10), th:nth-child(10) { display: none; }
 }

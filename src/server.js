@@ -97,7 +97,7 @@ app.get('/api/library', (req, res) => {
 /** Morceau + ce que fadarr en sait (cues, BPM, grille…). */
 function withInfo(e) {
   const info = store.trackInfo(e.path) || {};
-  return { ...e, bpm: info.bpm || e.bpm, key: info.key || e.key, gridStart: info.gridStart ?? null, cueCount: (info.cues || []).length, rating: info.rating || 0, traktor: Boolean(info.traktor) };
+  return { ...e, bpm: info.bpm || e.bpm, key: info.key || e.key, gridStart: info.gridStart ?? null, cueCount: (info.cues || []).length, rating: info.rating || 0, color: info.color || '', traktor: Boolean(info.traktor) };
 }
 
 app.get('/api/track', wrap(async (req, res) => {
@@ -124,6 +124,7 @@ app.put('/api/track/meta', wrap(async (req, res) => {
   if (b.gridStart !== undefined) { const v = Number(b.gridStart); patch.gridStart = Number.isFinite(v) && v >= 0 ? Math.round(v * 1000) / 1000 : null; }
   if (b.key !== undefined) patch.key = String(b.key).slice(0, 8);
   if (b.rating !== undefined) patch.rating = Math.max(0, Math.min(255, Math.round(Number(b.rating) || 0)));
+  if (b.color !== undefined) patch.color = /^#[0-9a-f]{6}$/i.test(String(b.color)) ? String(b.color).toLowerCase() : '';
   if (b.comment !== undefined) patch.comment = String(b.comment).slice(0, 300);
   // valeur posée à la main (Tap, 1er temps, ×2/÷2, édition du BPM) : un ré-import ne l'écrase pas. La détection auto (b.auto) ne bloque rien.
   if ((b.bpm !== undefined || b.gridStart !== undefined) && !b.auto) patch.edited = true;
@@ -180,7 +181,15 @@ app.post('/api/playlists', wrap(async (req, res) => {
 app.post('/api/playlists/:id/duplicate', wrap(async (req, res) => {
   const p = store.playlist(req.params.id);
   if (!p) throw httpError(404, 'Playlist introuvable.');
-  res.json(store.createPlaylist({ name: req.body?.name || `${p.name} (fadarr)`, folder: '', tracks: p.tracks }));
+  const folder = req.body?.folder !== undefined ? String(req.body.folder) : (p.source === 'fadarr' ? (p.folder || '') : '');
+  res.json(store.createPlaylist({ name: req.body?.name || (p.source === 'fadarr' ? `${p.name} (copie)` : `${p.name} (fadarr)`), folder, tracks: p.tracks }));
+}));
+
+/** Renomme une catégorie (ou la dissout si « to » est vide). Ne touche qu'aux playlists fadarr. */
+app.put('/api/playlists-folder', wrap(async (req, res) => {
+  const from = String(req.body?.from ?? '');
+  const to = String(req.body?.to ?? '');
+  res.json({ moved: store.renameFolder(from, to) });
 }));
 
 app.put('/api/playlists/:id', wrap(async (req, res) => {
@@ -218,6 +227,17 @@ app.post('/api/import/rekordbox', express.text({ type: '*/*', limit: '200mb' }),
   const report = require('./rekordboxImport').importXml(xml);
   console.log(`📥 Import Rekordbox : ${report.matched}/${report.entries} morceaux retrouvés, ${report.playlists} playlists, ${report.cuesImported} cues.`);
   res.json(report);
+}));
+
+app.post('/api/export/traktor', wrap(async (req, res) => {
+  const { xml, report } = require('./traktorExport').exportNml();
+  console.log(`📤 Export Traktor : ${report.playlists} playlist(s), ${report.tracks} morceau(x), ${report.skippedCount} ignoré(s).`);
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="collection.nml"');
+  res.setHeader('X-Fadarr-Playlists', String(report.playlists));
+  res.setHeader('X-Fadarr-Tracks', String(report.tracks));
+  res.setHeader('X-Fadarr-Skipped', String(report.skippedCount));
+  res.send(xml);
 }));
 
 app.post('/api/export/rekordbox', wrap(async (req, res) => {

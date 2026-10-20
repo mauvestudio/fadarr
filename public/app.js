@@ -14,6 +14,8 @@
     return neg ? `-${txt}` : txt;
   };
   const shortDate = (ms) => { if (!ms) return ''; try { return new Date(ms).toLocaleDateString(window.I18N.locale, { day: '2-digit', month: '2-digit', year: '2-digit' }); } catch (e) { return ''; } };
+  /** Note Traktor (0-255) -> 0 à 5 étoiles, façon Mixxx. */
+  const ratingStars = (r) => { const n = Math.max(0, Math.min(5, Math.round((Number(r) || 0) / 51))); return n ? `<span class="stars" title="${n}/5">${'★'.repeat(n)}<span class="e">${'★'.repeat(5 - n)}</span></span>` : ''; };
   // Tonalité : notation musicale (stockée), Camelot ou Open Key (Traktor) à l'affichage
   const CAMELOT = { 'C': '8B', 'Db': '3B', 'D': '10B', 'Eb': '5B', 'E': '12B', 'F': '7B', 'F#': '2B', 'G': '9B', 'Ab': '4B', 'A': '11B', 'Bb': '6B', 'B': '1B',
     'Cm': '5A', 'Dbm': '12A', 'C#m': '12A', 'Dm': '7A', 'Ebm': '2A', 'D#m': '2A', 'Em': '9A', 'Fm': '4A', 'F#m': '11A', 'Gm': '6A', 'Abm': '1A', 'G#m': '1A', 'Am': '8A', 'Bbm': '3A', 'Bm': '10A',
@@ -69,6 +71,30 @@
     el.textContent = msg;
     $('#toasts').appendChild(el);
     setTimeout(() => el.remove(), kind === 'error' ? 7000 : 3500);
+  }
+
+  /** Menu contextuel (clic droit). items : [{label, fn, danger} | {sep:true}]. */
+  function contextMenu(ev, items) {
+    ev.preventDefault();
+    $$('.ctx-menu').forEach((m) => m.remove());
+    const m = document.createElement('div');
+    m.className = 'ctx-menu';
+    for (const it of items) {
+      if (it.sep) { const s = document.createElement('div'); s.className = 'ctx-sep'; m.appendChild(s); continue; }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `ctx-item${it.danger ? ' danger' : ''}`;
+      b.textContent = it.label;
+      b.addEventListener('click', () => { m.remove(); try { it.fn(); } catch (e) { toast(e.message, 'error'); } });
+      m.appendChild(b);
+    }
+    document.body.appendChild(m);
+    const pad = 6; const w = m.offsetWidth; const h = m.offsetHeight;
+    m.style.left = `${Math.min(ev.clientX, window.innerWidth - w - pad)}px`;
+    m.style.top = `${Math.min(ev.clientY, window.innerHeight - h - pad)}px`;
+    const close = (e) => { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); } };
+    const esc = (e) => { if (e.key === 'Escape') { m.remove(); document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); } };
+    setTimeout(() => { document.addEventListener('mousedown', close); document.addEventListener('keydown', esc); }, 0);
   }
 
   // ===========================================================================
@@ -1039,6 +1065,9 @@
             row.addEventListener('dragleave', () => row.classList.remove('drop'));
             row.addEventListener('drop', (ev) => { const id = ev.dataTransfer.getData('application/x-fadarr-playlist'); if (id) { ev.preventDefault(); ev.stopPropagation(); row.classList.remove('drop'); n.plDrop(id); } });
           }
+          if (n.menu) { // clic droit : menu contextuel façon Traktor
+            row.addEventListener('contextmenu', (ev) => { ev.stopPropagation(); const items = typeof n.menu === 'function' ? n.menu() : n.menu; if (items && items.length) contextMenu(ev, items); });
+          }
           parent.appendChild(row);
           if (hasKids) { parent.appendChild(kids); walk(n.children, depth + 1, kids); }
         }
@@ -1099,12 +1128,27 @@
       const folderNode = (name) => {
         const key = `mine:${name}`;
         if (folders.has(key)) return folders.get(key);
-        const n = { key, label: name, children: [], plDrop: (id) => this.movePlaylist(id, name) };
+        const n = { key, label: name, children: [], plDrop: (id) => this.movePlaylist(id, name),
+          menu: () => [
+            { label: t('Nouvelle playlist ici'), fn: () => this.newPlaylistIn(name) },
+            { label: t('Renommer la catégorie'), fn: () => this.renameCategory(name) },
+            { sep: true },
+            { label: t('Dissoudre la catégorie'), danger: true, fn: () => this.deleteCategory(name) }
+          ] };
         folders.set(key, n); roots.push(n); return n;
       };
+      const plMenu = (p) => [
+        { label: t('Ouvrir'), fn: () => this.show({ type: 'playlist', id: p.id }) },
+        { label: t('Renommer'), fn: () => this.renamePlaylist(p.id, p.name) },
+        { label: t('Dupliquer'), fn: () => this.duplicatePlaylist(p.id) },
+        { label: t('Nouvelle catégorie…'), fn: () => this.newCategory(p.id) },
+        ...(String(p.folder || '').trim() ? [{ label: t('Sortir de la catégorie'), fn: () => this.movePlaylist(p.id, '') }] : []),
+        { sep: true },
+        { label: t('Supprimer'), danger: true, fn: () => this.deletePlaylist(p.id, p.name) }
+      ];
       for (const p of mine) {
         const folder = String(p.folder || '').trim();
-        const leaf = { key: `pl:${p.id}`, label: p.name, count: p.count, children: [], draggable: p.id, select: () => this.show({ type: 'playlist', id: p.id }), drop: (paths) => this.addTo(p.id, paths) };
+        const leaf = { key: `pl:${p.id}`, label: p.name, count: p.count, children: [], draggable: p.id, select: () => this.show({ type: 'playlist', id: p.id }), drop: (paths) => this.addTo(p.id, paths), menu: () => plMenu(p) };
         if (folder) folderNode(folder).children.push(leaf); else roots.push(leaf);
       }
       for (const f of folders.values()) f.count = f.children.length;
@@ -1133,17 +1177,59 @@
       if (name && name.trim()) this.movePlaylist(id, name.trim());
     },
 
+    /** Crée une playlist (optionnellement dans une catégorie). */
+    async newPlaylistIn(folder) {
+      const name = prompt(t('Nom de la playlist :'));
+      if (!name || !name.trim()) return;
+      try { const p = await api('POST', '/api/playlists', { name: name.trim(), folder: folder || '' }); await this.loadPlaylists(); this.show({ type: 'playlist', id: p.id }); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async renamePlaylist(id, current) {
+      const name = prompt(t('Nouveau nom :'), current); if (!name || !name.trim()) return;
+      try { await api('PUT', `/api/playlists/${id}`, { name: name.trim() }); await this.loadPlaylists(); if (this.view.type === 'playlist' && this.view.id === id) this.show(this.view); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async duplicatePlaylist(id) {
+      try { const c = await api('POST', `/api/playlists/${id}/duplicate`, {}); await this.loadPlaylists(); this.show({ type: 'playlist', id: c.id }); toast(t('Copie créée : {name}', { name: c.name })); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async deletePlaylist(id, name) {
+      if (!confirm(t('Supprimer la playlist « {name} » ? (les morceaux ne sont pas touchés)', { name }))) return;
+      try { await api('DELETE', `/api/playlists/${id}`); await this.loadPlaylists(); if (this.view.type === 'playlist' && this.view.id === id) this.show({ type: 'all' }); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async renameCategory(name) {
+      const to = prompt(t('Nouveau nom de la catégorie :'), name); if (to === null) return;
+      try { await api('PUT', '/api/playlists-folder', { from: name, to: to.trim() }); await this.loadPlaylists(); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async deleteCategory(name) {
+      if (!confirm(t('Dissoudre la catégorie « {name} » ? Les playlists qu’elle contient reviennent à la racine (elles ne sont pas supprimées).', { name }))) return;
+      try { const r = await api('PUT', '/api/playlists-folder', { from: name, to: '' }); await this.loadPlaylists(); toast(t('Catégorie dissoute ({n} playlist(s)).', { n: r.moved })); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
     /** Arbre de playlists d'une source importée (lecture seule), dossiers imbriqués d'après le champ « folder ». */
     renderImported(boxId, lists, rootFolder, keyPrefix, emptyMsg) {
       const box = $(boxId);
       if (!lists.length) { box.innerHTML = `<div class="node fold muted">${esc(emptyMsg)}</div>`; return; }
-      const leaf = (p) => ({ key: `pl:${p.id}`, label: p.name, count: p.count, children: [], select: () => this.show({ type: 'playlist', id: p.id }) });
+      const leaf = (p) => ({
+        key: `pl:${p.id}`, label: p.name, count: p.count, children: [], select: () => this.show({ type: 'playlist', id: p.id }),
+        menu: () => [{ label: t('Copier dans mes playlists'), fn: () => this.duplicatePlaylist(p.id) }]
+      });
       const roots = [];
       const folders = new Map();
       const folderNode = (parts) => {
         const key = `${keyPrefix}:${parts.join('/')}`;
         if (folders.has(key)) return folders.get(key);
-        const n = { key, label: parts[parts.length - 1], children: [] };
+        const label = parts[parts.length - 1];
+        // déposer une de MES playlists sur un dossier Traktor/Rekordbox la range dans une catégorie du même nom (visible aussi dans Traktor après export)
+        const n = { key, label, children: [], plDrop: (id) => this.movePlaylist(id, label) };
         folders.set(key, n);
         (parts.length > 1 ? folderNode(parts.slice(0, -1)).children : roots).push(n);
         return n;
@@ -1216,6 +1302,7 @@
         const val = (t) => {
           if (col === 'key') return keySortValue(t.key);
           if (col === 'added') return Number(t.added) || 0;
+          if (col === 'rating') return Number(t.rating) || 0;
           if (col === 'index' || col === 'bpm' || col === 'duration' || col === 'cueCount') return Number(t[col]) || (col === 'index' ? 0 : -1);
           return String(t[col] || '').toLowerCase();
         };
@@ -1250,6 +1337,7 @@
       return `<td class="n">${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
         + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
         + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
+        + `<td class="rate">${ratingStars(t.rating)}</td>`
         + `<td class="r muted small" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
         + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
         + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
@@ -1277,13 +1365,14 @@
       const last = Math.min(n, first + count);
       const top = first * h;
       const bottom = Math.max(0, (n - last) * h);
-      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="11"></td></tr>` : '';
+      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="12"></td></tr>` : '';
       for (let i = first; i < last; i++) {
         const tr = rows[i];
         const num = (this.current ? tr.index : i) + 1;
-        html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}>${this.rowHtml(tr, num)}</tr>`;
+        const accent = /^#[0-9a-f]{6}$/i.test(tr.color || '') ? ` style="box-shadow:inset 3px 0 0 0 ${tr.color}"` : '';
+        html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}${accent}>${this.rowHtml(tr, num)}</tr>`;
       }
-      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="11"></td></tr>`;
+      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="12"></td></tr>`;
       body.innerHTML = html;
       // reporte les classes (match / loaded / missing) calculées dans rowHtml
       $$('#tracks tbody tr[data-vi]').forEach((tr) => { const c = $('.vcls', tr); if (c) { if (c.textContent) tr.className = c.textContent; c.remove(); } });
@@ -1472,17 +1561,33 @@
       <div class="small muted">${t('Format :')}</div>
       <div class="exp-fmt">
         <label><input type="radio" name="e-fmt" value="xml" checked> ${t('Rekordbox XML (platines via Rekordbox)')}</label>
+        <label><input type="radio" name="e-fmt" value="nml"> ${t('Traktor (collection.nml, ré-importable)')}</label>
         <label class="muted" title="${t('Bientôt : écriture directe de la clé USB, sans passer par Rekordbox.')}"><input type="radio" name="e-fmt" value="usb" disabled> ${t('Clé USB directe pour CDJ (bientôt)')}</label>
       </div>
-      <label>${t('Chemin du dossier musique sur ton Mac')}
-        <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
-      </label>
-      <div class="small muted">${t('Playlists à exporter :')}</div>
-      <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'fadarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
-      <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
+      <div id="e-rb">
+        <label>${t('Chemin du dossier musique sur ton Mac')}
+          <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
+        </label>
+        <div class="small muted">${t('Playlists à exporter :')}</div>
+        <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'fadarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
+        <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
+      </div>
+      <div id="e-nml" hidden>
+        <div class="small muted">${t('Toutes tes playlists fadarr (avec leurs catégories) sont réécrites dans un collection.nml. Tes couleurs, notes, BPM, grille et cues repartent avec. Les morceaux venus de Traktor retrouvent leur place ; ceux ajoutés seulement dans fadarr sont ignorés (pas d’emplacement Mac).')}</div>
+        <div class="small muted">${t('Dans Traktor : clic droit sur « Playlists » > « Import… » > choisis le collection.nml. ⚠️ Ne remplace jamais ton collection.nml d’origine par celui-ci.')}</div>
+      </div>
       <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="e-go">${t('Télécharger rekordbox.xml')}</button></div>`, (root) => {
+      const syncFmt = () => {
+        const fmt = ($('input[name="e-fmt"]:checked', root) || {}).value || 'xml';
+        $('#e-rb', root).hidden = fmt !== 'xml';
+        $('#e-nml', root).hidden = fmt !== 'nml';
+        $('#e-go', root).textContent = fmt === 'nml' ? t('Télécharger collection.nml') : t('Télécharger rekordbox.xml');
+      };
+      $$('input[name="e-fmt"]', root).forEach((r) => r.addEventListener('change', syncFmt));
+      syncFmt();
       $('#e-go', root).addEventListener('click', async (ev) => {
         ev.preventDefault();
+        if (($('input[name="e-fmt"]:checked', root) || {}).value === 'nml') { exportTraktor().catch((e) => toast(e.message, 'error')); return; }
         try {
           const mac = $('#e-mac', root).value.trim();
           if (mac !== s.macPrefix) await api('PUT', '/api/settings', { macPrefix: mac });
@@ -1512,6 +1617,25 @@
         } catch (e) { toast(e.message, 'error'); }
       });
     });
+  }
+
+  /** Export Traktor : génère et télécharge un collection.nml ré-importable. */
+  async function exportTraktor() {
+    const res = await fetch('/api/export/traktor', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lang': window.I18N.lang }, body: '{}' });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erreur ${res.status}`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'collection.nml'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    const dlg = $('#modal'); if (dlg && dlg.open) dlg.close();
+    const pl = Number(res.headers.get('X-Fadarr-Playlists')) || 0;
+    const n = Number(res.headers.get('X-Fadarr-Tracks')) || 0;
+    const skipped = Number(res.headers.get('X-Fadarr-Skipped')) || 0;
+    modal(`<h2>${t('collection.nml téléchargé')}</h2>
+      <p>${t('{p} playlist(s), {n} morceau(x) réécrits pour Traktor.', { p: `<b>${pl}</b>`, n: `<b>${n}</b>` })}</p>
+      ${skipped ? `<ul class="report"><li>${t('{n} morceaux ajoutés seulement dans fadarr ont été ignorés (Traktor ne connaît pas leur emplacement sur ton Mac).', { n: skipped })}</li></ul>` : `<p class="ok-line">${t('Tous les morceaux ont pu être réécrits. ✔')}</p>`}
+      <div class="small muted">${t('Dans Traktor : clic droit sur « Playlists » (panneau de gauche) > « Import… » > choisis ce collection.nml. Tes catégories deviennent des dossiers Traktor. ⚠️ C’est un ajout : ne remplace pas ton collection.nml d’origine par ce fichier.')}</div>
+      <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
   }
 
   // ===========================================================================

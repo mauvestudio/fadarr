@@ -103,6 +103,15 @@ function convertCues(cueList) {
 const NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const KEYS = [...NOTES, ...NOTES.map((k) => `${k}m`)];
 
+/** Pastilles de couleur Traktor (INFO COLOR 1-7) -> hex, reprises à l'identique dans fadarr et au ré-export. */
+const TRAKTOR_COLORS = { 1: '#f5425a', 2: '#f58a42', 3: '#f5d142', 4: '#4caf50', 5: '#42a5f5', 6: '#7e57c2', 7: '#ec407a' };
+/** hex -> index Traktor le plus proche (pour ré-exporter la couleur). */
+function colorToTraktor(hex) {
+  const h = String(hex || '').toLowerCase();
+  for (const k of Object.keys(TRAKTOR_COLORS)) if (TRAKTOR_COLORS[k] === h) return Number(k);
+  return null;
+}
+
 function walkPlaylists(node, folderPath, out) {
   for (const n of arr(node)) {
     const type = n['@_TYPE'];
@@ -154,12 +163,17 @@ function importNml(xml) {
     const bpm = Number(e.TEMPO?.['@_BPM']);
     const keyNum = Number(e.MUSICAL_KEY?.['@_VALUE']);
     const info = e.INFO || {};
+    const colorIdx = Number(info['@_COLOR']);
     const current = store.trackInfo(found.rel);
     const patch = {
       traktor: true,
+      // clé + emplacement Mac d'origine : conservés pour ré-écrire un collection.nml que Traktor reconnaîtra (export)
+      traktorKey: primaryKey(loc),
+      traktorLoc: { VOLUME: loc['@_VOLUME'] || '', VOLUMEID: loc['@_VOLUMEID'] || '', DIR: loc['@_DIR'] || '', FILE: loc['@_FILE'] || '' },
       bpm: Number.isFinite(bpm) && bpm > 0 ? Math.round(bpm * 100) / 100 : current?.bpm ?? null,
       gridStart: gridStart ?? current?.gridStart ?? null,
       key: Number.isInteger(keyNum) && KEYS[keyNum] ? KEYS[keyNum] : (current?.key || ''),
+      color: (colorIdx >= 1 && colorIdx <= 7) ? TRAKTOR_COLORS[colorIdx] : (current?.color || ''),
       rating: Number(info['@_RANKING']) || current?.rating || 0,
       comment: String(info['@_COMMENT'] || current?.comment || '').slice(0, 300),
       // infos de la collection : affichées tant que les tags du fichier n'ont pas été lus (et en secours s'ils sont vides)
@@ -202,4 +216,4 @@ function importNml(xml) {
   };
 }
 
-module.exports = { importNml, _internals: { convertCues, locationParts, walkPlaylists, KEYS } };
+module.exports = { importNml, TRAKTOR_COLORS, colorToTraktor, _internals: { convertCues, locationParts, walkPlaylists, KEYS, primaryKey } };

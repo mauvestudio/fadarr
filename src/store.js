@@ -143,6 +143,16 @@ function updatePlaylist(id, patch) {
   return p;
 }
 
+/** Renomme une catégorie fadarr (folder) en bloc, ou la dissout (to vide). @returns nombre de playlists déplacées. */
+function renameFolder(from, to) {
+  const f = String(from || '');
+  const t = String(to || '').slice(0, 300);
+  let n = 0;
+  for (const p of db.playlists) if (p.source === 'fadarr' && (p.folder || '') === f) { p.folder = t; n++; }
+  if (n) save();
+  return n;
+}
+
 function deletePlaylist(id) {
   const before = db.playlists.length;
   db.playlists = db.playlists.filter((p) => p.id !== id);
@@ -178,6 +188,6 @@ function updateSettings(patch) {
 load();
 
 module.exports = {
-  DATA_DIR, trackInfo, updateTrack, cleanCues, playlists, playlist, createPlaylist, updatePlaylist, deletePlaylist,
+  DATA_DIR, trackInfo, updateTrack, cleanCues, playlists, playlist, createPlaylist, updatePlaylist, deletePlaylist, renameFolder,
   replaceTraktorPlaylists, replaceSourcePlaylists, settings, updateSettings, flush, newId, all: () => db
 };
