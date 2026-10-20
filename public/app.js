@@ -14,8 +14,16 @@
     return neg ? `-${txt}` : txt;
   };
   const shortDate = (ms) => { if (!ms) return ''; try { return new Date(ms).toLocaleDateString(window.I18N.locale, { day: '2-digit', month: '2-digit', year: '2-digit' }); } catch (e) { return ''; } };
-  /** Note Traktor (0-255) -> 0 à 5 étoiles, façon Mixxx. */
-  const ratingStars = (r) => { const n = Math.max(0, Math.min(5, Math.round((Number(r) || 0) / 51))); return n ? `<span class="stars" title="${n}/5">${'★'.repeat(n)}<span class="e">${'★'.repeat(5 - n)}</span></span>` : ''; };
+  /** Note Traktor (0-255) -> 5 étoiles cliquables façon Mixxx (clic = poser la note, reclic sur la même = enlever). */
+  const ratingStars = (r) => {
+    const n = Math.max(0, Math.min(5, Math.round((Number(r) || 0) / 51)));
+    let s = `<span class="stars" title="${window.I18N.t('Clic : noter')}">`;
+    for (let i = 5; i >= 1; i--) s += `<span class="st${i <= n ? ' on' : ''}" data-rate="${i}">★</span>`; // ordre inversé : l'aperçu au survol remplit jusqu'à l'étoile pointée
+    return s + '</span>';
+  };
+  /** Les 7 couleurs Traktor pour le menu clic droit (même ordre/teintes qu'à l'import). */
+  const TRAKTOR_COLORS = { 1: '#f5425a', 2: '#f58a42', 3: '#f5d142', 4: '#4caf50', 5: '#42a5f5', 6: '#7e57c2', 7: '#ec407a' };
+  const COLOR_NAMES = { 1: 'Rouge', 2: 'Orange', 3: 'Jaune', 4: 'Vert', 5: 'Bleu', 6: 'Violet', 7: 'Rose' };
   // Tonalité : notation musicale (stockée), Camelot ou Open Key (Traktor) à l'affichage
   const CAMELOT = { 'C': '8B', 'Db': '3B', 'D': '10B', 'Eb': '5B', 'E': '12B', 'F': '7B', 'F#': '2B', 'G': '9B', 'Ab': '4B', 'A': '11B', 'Bb': '6B', 'B': '1B',
     'Cm': '5A', 'Dbm': '12A', 'C#m': '12A', 'Dm': '7A', 'Ebm': '2A', 'D#m': '2A', 'Em': '9A', 'Fm': '4A', 'F#m': '11A', 'Gm': '6A', 'Abm': '1A', 'G#m': '1A', 'Am': '8A', 'Bbm': '3A', 'Bm': '10A',
@@ -84,7 +92,7 @@
       const b = document.createElement('button');
       b.type = 'button';
       b.className = `ctx-item${it.danger ? ' danger' : ''}`;
-      b.textContent = it.label;
+      if (it.html) b.innerHTML = it.label; else b.textContent = it.label;
       b.addEventListener('click', () => { m.remove(); try { it.fn(); } catch (e) { toast(e.message, 'error'); } });
       m.appendChild(b);
     }
@@ -1365,14 +1373,14 @@
       const last = Math.min(n, first + count);
       const top = first * h;
       const bottom = Math.max(0, (n - last) * h);
-      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="12"></td></tr>` : '';
+      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="11"></td></tr>` : '';
       for (let i = first; i < last; i++) {
         const tr = rows[i];
         const num = (this.current ? tr.index : i) + 1;
         const accent = /^#[0-9a-f]{6}$/i.test(tr.color || '') ? ` style="box-shadow:inset 3px 0 0 0 ${tr.color}"` : '';
         html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}${accent}>${this.rowHtml(tr, num)}</tr>`;
       }
-      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="12"></td></tr>`;
+      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="11"></td></tr>`;
       body.innerHTML = html;
       // reporte les classes (match / loaded / missing) calculées dans rowHtml
       $$('#tracks tbody tr[data-vi]').forEach((tr) => { const c = $('.vcls', tr); if (c) { if (c.textContent) tr.className = c.textContent; c.remove(); } });
@@ -1389,6 +1397,8 @@
       const rowOf = (el) => { const tr = el.closest && el.closest('tr[data-vi]'); return tr ? this._vrows[Number(tr.dataset.vi)] : null; };
       body.addEventListener('click', (ev) => {
         const t = rowOf(ev.target); if (!t) return;
+        const star = ev.target.closest('[data-rate]');
+        if (star) { const n = Number(star.dataset.rate); const cur = Math.round((t.rating || 0) / 51); this.setRating(t, (n === cur ? 0 : n) * 51); return; }
         const l = ev.target.closest('[data-l]'); if (l) { decks[l.dataset.l].load(t); return; }
         if (ev.target.closest('[data-pv]')) { preview.toggle(t); return; }
         if (ev.target.closest('[data-x]')) { const tracks = this.current.tracks.slice(); tracks.splice(t.index, 1); this.savePlaylist(tracks); return; }
@@ -1399,6 +1409,20 @@
         }
       });
       body.addEventListener('dblclick', (ev) => { const t = rowOf(ev.target); if (t && !t.missing) (decks.A.track && !decks.B.track ? decks.B : decks.A.playing && !decks.B.playing ? decks.B : decks.A).load(t); });
+      // clic droit sur un morceau : couleur (façon Traktor) + note + charger un deck
+      body.addEventListener('contextmenu', (ev) => {
+        const tr = rowOf(ev.target); if (!tr || tr.missing) return;
+        const swatch = (hex, label) => `<span class="sw" style="background:${hex}"></span>${label}`;
+        const colorItems = Object.keys(TRAKTOR_COLORS).map((k) => ({ label: swatch(TRAKTOR_COLORS[k], t(COLOR_NAMES[k])), html: true, fn: () => this.setColor(tr, TRAKTOR_COLORS[k]) }));
+        const items = [
+          ...colorItems,
+          { label: t('Aucune couleur'), fn: () => this.setColor(tr, '') },
+          { sep: true },
+          { label: t('Charger dans A'), fn: () => decks.A.load(tr) },
+          { label: t('Charger dans B'), fn: () => decks.B.load(tr) }
+        ];
+        contextMenu(ev, items);
+      });
       body.addEventListener('dragstart', (ev) => {
         const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); const t = tr && this._vrows[Number(tr.dataset.vi)]; if (!t) return;
         ev.dataTransfer.setData('application/x-fadarr-track', JSON.stringify(t));
@@ -1427,6 +1451,22 @@
 
     async savePlaylist(tracks) {
       try { await api('PUT', `/api/playlists/${this.current.id}`, { tracks }); await this.loadPlaylists(); await this.show(this.view); } catch (e) { toast(e.message, 'error'); }
+    },
+
+    /** Pose la note (0-255) d'un morceau et rafraîchit la ligne + les decks. */
+    async setRating(tr, rating) {
+      tr.rating = rating;
+      this.paintWindow();
+      for (const d of Object.values(decks)) if (d.track && d.track.path === tr.path) { d.track.rating = rating; }
+      try { await api('PUT', '/api/track/meta', { path: tr.path, rating }); } catch (e) { toast(e.message, 'error'); }
+    },
+
+    /** Pose (ou enlève) la couleur d'un morceau façon Traktor. */
+    async setColor(tr, color) {
+      tr.color = color;
+      this.paintWindow();
+      for (const d of Object.values(decks)) if (d.track && d.track.path === tr.path) { d.track.color = color; }
+      try { await api('PUT', '/api/track/meta', { path: tr.path, color }); } catch (e) { toast(e.message, 'error'); }
     },
 
     async addTo(id, paths) {

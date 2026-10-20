@@ -3,6 +3,14 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.6.1] — 2026-10-20
+### Ajouté
+- **Notes cliquables (★) façon Mixxx** : 5 étoiles sur chaque ligne de la bibliothèque — clic pour noter, reclic sur la même étoile pour enlever. La note est enregistrée et repart à l'export Rekordbox/Traktor.
+- **Clic droit sur un morceau** : poser une **couleur** (7 teintes Traktor) ou l'enlever, et charger le morceau dans le deck A ou B. La couleur s'affiche en liseré à gauche de la ligne.
+### Corrigé
+- **Largeur de la bibliothèque** : la liste occupe enfin toute la largeur. Une ligne d'espacement de la liste virtualisée créait une colonne fantôme qui rognait ~390 px à droite (la colonne Titre ne s'étirait plus). Corrigé.
+- *EN: click-to-rate stars on every library row (saved, exported); right-click a track to set/clear a Traktor color or load it into a deck; fixed the library not using full width (a virtual-list spacer row spawned a phantom column that stole ~390px).*
+
 ## [0.6.0] — 2026-10-20
 Playlists façon Mixxx / Traktor (idées seulement ; Mixxx et Traktor restent la propriété de leurs auteurs, fadarr reste MIT).
 ### Ajouté
