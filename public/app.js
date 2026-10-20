@@ -39,6 +39,13 @@
     return keyMode === 'camelot' ? c : camelotToOpen(c);
   }
   const keySortValue = (k) => { const c = CAMELOT[k] || ''; const m = /^(\d+)([AB])$/.exec(c); return m ? Number(m[1]) * 2 + (m[2] === 'B' ? 1 : 0) : 99; };
+  /** Couleur de la tonalité façon Traktor/Mixxx : une teinte par position de la roue Camelot (1-12). */
+  function keyColor(k) {
+    const c = CAMELOT[k] || (/^\d+[AB]$/.test(k || '') ? k : '');
+    const m = /^(\d+)[AB]$/.exec(c); if (!m) return '';
+    const hue = (((Number(m[1]) - 1) * 30) + 210) % 360;
+    return `hsl(${hue} 72% 63%)`;
+  }
 
   let refDeck = null; // deck de référence pour la surbrillance « compatible » de la liste
 
@@ -678,7 +685,9 @@
   let waveStyle = 'rgb';
   try { waveStyle = localStorage.getItem('fadarr-wave') || 'rgb'; } catch (e) { /* rien */ }
   const hexRgb = (h) => { const n = parseInt(String(h).replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; };
-  function waveColorsRGB() { const c = waveColors(); return { lo: hexRgb(c.lo), mi: hexRgb(c.mi), hi: hexRgb(c.hi) }; }
+  // Waveform RGB « full color » façon Mixxx/Traktor : graves = rouge, médiums = vert, aigus = bleu (indépendant du skin).
+  const RGB_LO = { r: 255, g: 48, b: 48 }, RGB_MI = { r: 46, g: 224, b: 110 }, RGB_HI = { r: 64, g: 120, b: 255 };
+  function waveColorsRGB() { return { lo: RGB_LO, mi: RGB_MI, hi: RGB_HI }; }
 
   /** Colonne « RGB » (façon Mixxx) : une seule couleur, mélange des 3 bandes pondéré par leur énergie ; hauteur = amplitude. */
   function drawColumnRGB(g, x, h, v, cols, scale) {
@@ -1342,8 +1351,9 @@
       const bc = ref ? bpmCompat(t.bpm, ref.bpm ? ref.bpm * ref.rate : null) : 0;
       const cls = [t.missing ? 'missing' : '', kc && bc ? 'match' : '',
         (refDeck && refDeck.track && refDeck.track.path === t.path) ? `loaded-${refDeck.id.toLowerCase()}` : ''].filter(Boolean).join(' ');
-      return `<td class="n">${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
-        + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}" title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
+      const keyStyle = t.key && !kc ? ` style="color:${keyColor(t.key)}"` : '';
+      return `<td class="n"><span class="cdot" data-cdot="1"${t.color ? ` style="background:${t.color}"` : ''} title="${window.I18N.t('Clic : couleur')}"></span>${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
+        + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}"${keyStyle} title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
         + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
         + `<td class="rate">${ratingStars(t.rating)}</td>`
         + `<td class="r muted small" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
@@ -1377,8 +1387,8 @@
       for (let i = first; i < last; i++) {
         const tr = rows[i];
         const num = (this.current ? tr.index : i) + 1;
-        const accent = /^#[0-9a-f]{6}$/i.test(tr.color || '') ? ` style="box-shadow:inset 3px 0 0 0 ${tr.color}"` : '';
-        html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}${accent}>${this.rowHtml(tr, num)}</tr>`;
+        const tint = /^#[0-9a-f]{6}$/i.test(tr.color || '') ? ` style="--rowc:${tr.color}"` : '';
+        html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}${tint}>${this.rowHtml(tr, num)}</tr>`;
       }
       if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="11"></td></tr>`;
       body.innerHTML = html;
@@ -1399,6 +1409,7 @@
         const t = rowOf(ev.target); if (!t) return;
         const star = ev.target.closest('[data-rate]');
         if (star) { const n = Number(star.dataset.rate); const cur = Math.round((t.rating || 0) / 51); this.setRating(t, (n === cur ? 0 : n) * 51); return; }
+        if (ev.target.closest('[data-cdot]') && !t.missing) { this.openColorMenu(ev, t); return; }
         const l = ev.target.closest('[data-l]'); if (l) { decks[l.dataset.l].load(t); return; }
         if (ev.target.closest('[data-pv]')) { preview.toggle(t); return; }
         if (ev.target.closest('[data-x]')) { const tracks = this.current.tracks.slice(); tracks.splice(t.index, 1); this.savePlaylist(tracks); return; }
@@ -1412,16 +1423,12 @@
       // clic droit sur un morceau : couleur (façon Traktor) + note + charger un deck
       body.addEventListener('contextmenu', (ev) => {
         const tr = rowOf(ev.target); if (!tr || tr.missing) return;
-        const swatch = (hex, label) => `<span class="sw" style="background:${hex}"></span>${label}`;
-        const colorItems = Object.keys(TRAKTOR_COLORS).map((k) => ({ label: swatch(TRAKTOR_COLORS[k], t(COLOR_NAMES[k])), html: true, fn: () => this.setColor(tr, TRAKTOR_COLORS[k]) }));
-        const items = [
-          ...colorItems,
-          { label: t('Aucune couleur'), fn: () => this.setColor(tr, '') },
+        contextMenu(ev, [
+          ...this.colorItems(tr),
           { sep: true },
           { label: t('Charger dans A'), fn: () => decks.A.load(tr) },
           { label: t('Charger dans B'), fn: () => decks.B.load(tr) }
-        ];
-        contextMenu(ev, items);
+        ]);
       });
       body.addEventListener('dragstart', (ev) => {
         const tr = ev.target.closest && ev.target.closest('tr[data-vi]'); const t = tr && this._vrows[Number(tr.dataset.vi)]; if (!t) return;
@@ -1468,6 +1475,18 @@
       for (const d of Object.values(decks)) if (d.track && d.track.path === tr.path) { d.track.color = color; }
       try { await api('PUT', '/api/track/meta', { path: tr.path, color }); } catch (e) { toast(e.message, 'error'); }
     },
+
+    /** Entrées de menu « couleur » (7 teintes Traktor + aucune), réutilisées par le point couleur et le clic droit. */
+    colorItems(tr) {
+      const sw = (hex, label) => `<span class="sw" style="background:${hex}"></span>${label}`;
+      return [
+        ...Object.keys(TRAKTOR_COLORS).map((k) => ({ label: sw(TRAKTOR_COLORS[k], t(COLOR_NAMES[k])), html: true, fn: () => this.setColor(tr, TRAKTOR_COLORS[k]) })),
+        { label: t('Aucune couleur'), fn: () => this.setColor(tr, '') }
+      ];
+    },
+
+    /** Petit sélecteur de couleur au clic sur le point couleur. */
+    openColorMenu(ev, tr) { contextMenu(ev, this.colorItems(tr)); },
 
     async addTo(id, paths) {
       try {

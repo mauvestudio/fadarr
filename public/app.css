@@ -147,7 +147,15 @@ td.act button { margin-left: 3px; }
 .empty { padding: 30px; text-align: center; color: var(--muted); }
 /* Liste virtualisée : largeurs de colonnes fixes (pas de tremblement au scroll) + cales invisibles */
 #tracks { table-layout: fixed; }
-#tracks th:nth-child(1), #tracks td:nth-child(1) { width: 42px; }
+#tracks th:nth-child(1), #tracks td:nth-child(1) { width: 58px; }
+/* Pastille de couleur façon Traktor (dans la colonne #), cliquable */
+td.n .cdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; background: transparent; box-shadow: inset 0 0 0 1.5px #44474d; cursor: pointer; }
+td.n .cdot[style] { box-shadow: none; }
+td.n .cdot:hover { outline: 2px solid rgb(255 255 255 / .25); outline-offset: 1px; }
+/* Teinte de ligne façon Traktor : fond coloré léger + barre de couleur à gauche */
+#tracks tbody tr[style*="--rowc"] td { background: color-mix(in srgb, var(--rowc) 15%, transparent); }
+#tracks tbody tr[style*="--rowc"]:hover td { background: color-mix(in srgb, var(--rowc) 26%, transparent); }
+#tracks tbody tr[style*="--rowc"] td.n { box-shadow: inset 3px 0 0 var(--rowc); }
 #tracks th:nth-child(2), #tracks td:nth-child(2) { width: 18%; }
 #tracks th:nth-child(4), #tracks td:nth-child(4) { width: 72px; }
 #tracks th:nth-child(5), #tracks td:nth-child(5) { width: 72px; }

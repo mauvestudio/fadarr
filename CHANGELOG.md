@@ -3,6 +3,15 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.6.2] — 2026-10-20
+Bibliothèque façon Traktor.
+### Ajouté
+- **Couleur par ligne façon Traktor** : la couleur d'un morceau teinte toute la ligne (fond léger + barre à gauche) et s'affiche comme une pastille cliquable dans la colonne #. (Avant, le liseré était un `box-shadow` sur `<tr>` que les navigateurs ne rendent pas — d'où « toujours pas de couleur ».)
+- **Tonalité colorée** (roue Camelot) : chaque Ton. prend une teinte, façon Traktor/Mixxx.
+### Corrigé
+- **Waveform RGB « full color »** : le mode RGB utilisait les couleurs du skin (bleu/orange/crème) et paraissait monochrome. Il utilise maintenant un vrai dégradé graves = rouge, médiums = vert, aigus = bleu, indépendant du skin. (Le mode se choisit dans « Onde » ; RGB par défaut.)
+- *EN: Traktor-style per-row color (full-row tint + left bar + clickable dot in the # column) — fixes the color that never showed because a `<tr>` box-shadow doesn't render; Camelot-colored key column; real full-color RGB waveform (low=red / mid=green / high=blue) instead of the dull skin-tinted mix.*
+
 ## [0.6.1] — 2026-10-20
 ### Ajouté
 - **Notes cliquables (★) façon Mixxx** : 5 étoiles sur chaque ligne de la bibliothèque — clic pour noter, reclic sur la même étoile pour enlever. La note est enregistrée et repart à l'export Rekordbox/Traktor.

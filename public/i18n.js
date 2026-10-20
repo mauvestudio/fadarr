@@ -190,6 +190,7 @@
       'Sortie de sa catégorie': 'Removed from its category',
       'Nom de la nouvelle catégorie :': 'New category name:',
       'Clic : noter': 'Click to rate',
+      'Clic : couleur': 'Click to set color',
       'Aucune couleur': 'No color',
       'Charger dans A': 'Load in A',
       'Charger dans B': 'Load in B',
