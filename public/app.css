@@ -114,6 +114,10 @@ input[type=range] { accent-color: var(--acc); }
 .node:hover { background: var(--panel2); }
 .node.sel { background: var(--panel2); border-left-color: var(--acc); }
 .node.drop { background: rgb(34 184 207 / .18); }
+.node.dragging { opacity: .45; }
+.tree.drop-root { outline: 2px dashed var(--acc); outline-offset: -3px; border-radius: 6px; }
+.node[data-key="mine:newcat"] { color: var(--muted); font-style: italic; }
+.node[data-key="mine:newcat"] .caret { visibility: hidden; }
 .node .cnt { margin-left: auto; color: var(--muted); font-size: 11px; }
 .node.folder { color: var(--muted); font-size: 11px; cursor: default; padding-top: 7px; }
 .node.folder:hover { background: transparent; }

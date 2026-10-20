@@ -184,6 +184,11 @@
       'Rekordbox XML (platines via Rekordbox)': 'Rekordbox XML (players via Rekordbox)',
       'Clé USB directe pour CDJ (bientôt)': 'Direct USB stick for CDJ (soon)',
       'Bientôt : écriture directe de la clé USB, sans passer par Rekordbox.': 'Soon: write the USB stick directly, without going through Rekordbox.',
+      // ---------- catégories de playlists (glisser-déposer) ----------
+      '＋ Catégorie…': '＋ Category…',
+      'Rangée dans « {name} »': 'Moved to “{name}”',
+      'Sortie de sa catégorie': 'Removed from its category',
+      'Nom de la nouvelle catégorie :': 'New category name:',
       // ---------- grille / beatgrid ----------
       'Grille': 'Grid',
       'Tap tempo : clique en rythme': 'Tap tempo: click in time',

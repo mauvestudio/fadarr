@@ -1029,6 +1029,16 @@
               if (data) { ev.preventDefault(); n.drop([JSON.parse(data).path]); }
             });
           }
+          if (n.draggable) { // playlist perso : déplaçable dans une catégorie
+            row.draggable = true;
+            row.addEventListener('dragstart', (ev) => { ev.stopPropagation(); ev.dataTransfer.setData('application/x-fadarr-playlist', n.draggable); ev.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+            row.addEventListener('dragend', () => row.classList.remove('dragging'));
+          }
+          if (n.plDrop) { // dossier / « + Catégorie » : accueille une playlist déposée
+            row.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-fadarr-playlist')) { ev.preventDefault(); ev.stopPropagation(); row.classList.add('drop'); } });
+            row.addEventListener('dragleave', () => row.classList.remove('drop'));
+            row.addEventListener('drop', (ev) => { const id = ev.dataTransfer.getData('application/x-fadarr-playlist'); if (id) { ev.preventDefault(); ev.stopPropagation(); row.classList.remove('drop'); n.plDrop(id); } });
+          }
           parent.appendChild(row);
           if (hasKids) { parent.appendChild(kids); walk(n.children, depth + 1, kids); }
         }
@@ -1068,13 +1078,7 @@
       this.playlists = await api('GET', '/api/playlists');
       const mine = this.playlists.filter((p) => p.source === 'fadarr');
       const trak = this.playlists.filter((p) => p.source === 'traktor');
-      const leaf = (p, editable) => ({
-        key: `pl:${p.id}`, label: p.name, count: p.count, children: [],
-        select: () => this.show({ type: 'playlist', id: p.id }),
-        drop: editable ? (paths) => this.addTo(p.id, paths) : null
-      });
-      if (mine.length) this.renderTree($('#pl-mine'), mine.map((p) => leaf(p, true)));
-      else $('#pl-mine').innerHTML = `<div class="node fold muted">${esc(t('Aucune playlist : ＋ pour en créer une'))}</div>`;
+      this.renderMinePlaylists(mine);
       // Sources importées (Traktor, Rekordbox) : « Racine / Dossier / Sous-dossier » -> dossiers imbriqués
       this.renderImported('#pl-traktor', trak, 'Traktor', 'tk', t('Importe ta collection.nml'));
       this.renderImported('#pl-rekordbox', this.playlists.filter((p) => p.source === 'rekordbox'), 'Rekordbox', 'rb', t('Importe un rekordbox.xml'));
@@ -1083,6 +1087,50 @@
       sel.innerHTML = '<option value="">—</option>' + mine.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
       if (mine.some((p) => p.id === keep)) sel.value = keep;
       this.markSel();
+    },
+
+    /** Mes playlists en catégories : chaque playlist a un « folder » (nom de catégorie). Glisser une playlist la range. */
+    renderMinePlaylists(mine) {
+      const box = $('#pl-mine');
+      this.bindMineRootDrop(box);
+      if (!mine.length) { box.innerHTML = `<div class="node fold muted">${esc(t('Aucune playlist : ＋ pour en créer une'))}</div>`; return; }
+      const roots = [];
+      const folders = new Map();
+      const folderNode = (name) => {
+        const key = `mine:${name}`;
+        if (folders.has(key)) return folders.get(key);
+        const n = { key, label: name, children: [], plDrop: (id) => this.movePlaylist(id, name) };
+        folders.set(key, n); roots.push(n); return n;
+      };
+      for (const p of mine) {
+        const folder = String(p.folder || '').trim();
+        const leaf = { key: `pl:${p.id}`, label: p.name, count: p.count, children: [], draggable: p.id, select: () => this.show({ type: 'playlist', id: p.id }), drop: (paths) => this.addTo(p.id, paths) };
+        if (folder) folderNode(folder).children.push(leaf); else roots.push(leaf);
+      }
+      for (const f of folders.values()) f.count = f.children.length;
+      roots.push({ key: 'mine:newcat', label: t('＋ Catégorie…'), children: [], newcat: true, plDrop: (id) => this.newCategory(id) });
+      this.renderTree(box, roots);
+    },
+
+    /** Déposer une playlist sur le fond du panneau « Mes playlists » : la sort de sa catégorie. (Posé une seule fois.) */
+    bindMineRootDrop(box) {
+      if (box._rootDropBound) return; box._rootDropBound = true;
+      box.addEventListener('dragover', (ev) => { if (ev.dataTransfer.types.includes('application/x-fadarr-playlist')) { ev.preventDefault(); box.classList.add('drop-root'); } });
+      box.addEventListener('dragleave', (ev) => { if (ev.target === box) box.classList.remove('drop-root'); });
+      box.addEventListener('drop', (ev) => { box.classList.remove('drop-root'); const id = ev.dataTransfer.getData('application/x-fadarr-playlist'); if (id) { ev.preventDefault(); this.movePlaylist(id, ''); } });
+    },
+
+    /** Range une playlist dans une catégorie (folder) ou l'en sort (folder vide). */
+    async movePlaylist(id, folder) {
+      const p = this.playlists.find((x) => x.id === id);
+      if (!p || p.source !== 'fadarr' || (p.folder || '') === folder) return;
+      try { await api('PUT', `/api/playlists/${id}`, { folder }); await this.loadPlaylists(); toast(folder ? t('Rangée dans « {name} »', { name: folder }) : t('Sortie de sa catégorie')); }
+      catch (e) { toast(e.message, 'error'); }
+    },
+
+    async newCategory(id) {
+      const name = prompt(t('Nom de la nouvelle catégorie :'));
+      if (name && name.trim()) this.movePlaylist(id, name.trim());
     },
 
     /** Arbre de playlists d'une source importée (lecture seule), dossiers imbriqués d'après le champ « folder ». */
