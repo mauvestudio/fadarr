@@ -739,19 +739,16 @@
   const RGB_LO = { r: 255, g: 48, b: 48 }, RGB_MI = { r: 46, g: 224, b: 110 }, RGB_HI = { r: 64, g: 120, b: 255 };
   function waveColorsRGB() { return { lo: RGB_LO, mi: RGB_MI, hi: RGB_HI }; }
 
-  /** Colonne « RGB » (façon Mixxx) : une seule couleur, mélange des 3 bandes pondéré par leur énergie ; hauteur = amplitude. */
+  /** Colonne « RGB » (façon Mixxx) : chaque bande pilote un canal (graves = rouge, médiums = vert, aigus = bleu),
+   *  normalisé par la bande dominante pour une couleur vive ; la hauteur = amplitude globale. */
   function drawColumnRGB(g, x, h, v, cols, scale) {
     const [m, l, md, hh] = v;
-    const sum = l + md + hh;
     const mid = h / 2;
-    let r = 70, gg = 70, b = 70;
-    if (sum > 0) {
-      r = (l * cols.lo.r + md * cols.mi.r + hh * cols.hi.r) / sum;
-      gg = (l * cols.lo.g + md * cols.mi.g + hh * cols.hi.g) / sum;
-      b = (l * cols.lo.b + md * cols.mi.b + hh * cols.hi.b) / sum;
-    }
+    const mx = Math.max(l, md, hh, 1e-4);
+    // teinte vive (la bande la plus forte sature son canal), avec un plancher pour ne pas éteindre les autres canaux
+    const ch = (b) => { const u = b / mx; return 40 + u * u * 215; };
     const bar = Math.max(1, m * scale);
-    g.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`;
+    g.fillStyle = `rgb(${ch(l) | 0},${ch(md) | 0},${ch(hh) | 0})`;
     g.fillRect(x, mid - bar / 2, 1, bar);
   }
 

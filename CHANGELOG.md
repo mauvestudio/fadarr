@@ -3,6 +3,11 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.7.1] — 2026-10-21
+### Corrigé
+- **Waveform RGB enfin « full color »** : le mode RGB faisait une moyenne pondérée des 3 couleurs de bande → comme la basse domine partout, tout virait à l'orange. Désormais chaque bande pilote directement un canal (graves = rouge, médiums = vert, aigus = bleu), façon Mixxx : rouge sur les kicks, vert sur les médiums, bleu sur les aigus, blanc sur le plein spectre.
+- *EN: real full-color RGB waveform — each frequency band now drives its own channel (low=R, mid=G, high=B) instead of a weighted average that always skewed orange.*
+
 ## [0.7.0] — 2026-10-20
 ### Ajouté
 - **Figer l'ordre d'une playlist** (façon Traktor) : trie une playlist par colonne (#, BPM, tonalité, note…) puis « Figer cet ordre » enregistre cet ordre comme nouvel ordre de la playlist. (La colonne # reste le numéro de piste : clic = ordre de la playlist, et le glisser-déposer reste dispo dans cet ordre.)
