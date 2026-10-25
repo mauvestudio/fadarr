@@ -3,6 +3,18 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.8.0] — 2026-10-25
+Interface façon Traktor Pro (disposition et codes visuels seulement : aucun logo ni élément graphique de Native Instruments ; fadarr reste MIT).
+### Modifié
+- **Decks façon Traktor** : titre / artiste / album sur trois lignes, temps restant et durée, BPM, % de tempo et BPM d'origine, grande lettre A / B ; SYNC et indicateur de phase sur une ligne ; fader de tempo à droite de la forme d'onde ; Play vert, CUE, tailles de loop 1/2 · 1 · 2 · 4 · 8 · 16 (reclic = sortir de la loop), IN / OUT ; 8 hot cues numérotés 1 à 8 ; tête de lecture rouge.
+- **Mixeur central** compact : tempo du deck maître en haut, potards à côté des faders. Le skin par défaut s'appelle désormais « Traktor » (Analog et Rotary restent disponibles).
+- **Navigateur façon Traktor** : recherche en haut de l'arbre, lignes entièrement teintées par leur couleur, ligne sélectionnée en bleu, colonnes # · ▶/deck chargé · couleur · Titre · Artiste · BPM · Ton. · Note · Durée · Format · Cues · Ajouté, barre d'état (nombre de morceaux, durée totale). Colonnes secondaires masquées sur les écrans de MacBook.
+- **Waveform RGB** : chaque bande est rapportée à son niveau typique sur le morceau (les médiums ne mettent plus tout en vert) ; kicks orange / rouge, charley bleu, plein spectre blanc. La vue d'ensemble garde les mêmes teintes.
+### Ajouté
+- **Favoris** (grille 2 × 6 au-dessus de la liste) : clic droit sur une playlist ou un dossier › Ajouter aux favoris.
+- Horloge dans la barre du haut.
+- *EN: Traktor Pro–style layout (no NI logos or artwork): three-line deck header, tempo fader beside the waveform, lime Play, 1/2–16 beat loop sizes, numbered hot cues, red playhead; compact mixer with master tempo; tree search, full-row colors, blue selection, status bar; 2×6 favorites grid; RGB waveform rebalanced per band so mids no longer turn everything green.*
+
 ## [0.7.1] — 2026-10-21
 ### Corrigé
 - **Waveform RGB enfin « full color »** : le mode RGB faisait une moyenne pondérée des 3 couleurs de bande → comme la basse domine partout, tout virait à l'orange. Désormais chaque bande pilote directement un canal (graves = rouge, médiums = vert, aigus = bleu), façon Mixxx : rouge sur les kicks, vert sur les médiums, bleu sur les aigus, blanc sur le plein spectre.

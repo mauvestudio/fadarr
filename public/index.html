@@ -9,23 +9,25 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="disc"></span>fadarr</div>
+  <div class="brand">FADARR</div>
   <button type="button" id="nas-btn" class="nas" title="Ouvrir ou fermer l'accès au NAS">
     <span class="dot"></span><span id="nas-label">NAS…</span><span id="nas-net" class="net"></span>
   </button>
   <button type="button" id="scan-btn" class="btn ghost" title="Relire la bibliothèque du NAS (seuls les fichiers nouveaux ou modifiés sont lus)">Analyser le NAS</button>
   <span id="scan-info" class="muted small"></span>
-  <button type="button" id="toggle-decks" class="btn ghost icon" title="Réduire les decks" aria-label="Réduire les decks">▲</button>
+  <span class="grow"></span>
+  <span id="clock" class="clock"></span>
   <span class="grow"></span>
   <label class="btn ghost" title="Importer ta collection Traktor (collection.nml)">Importer Traktor<input type="file" id="nml-input" accept=".nml,application/xml,text/xml" hidden></label>
   <label class="btn ghost" title="Importer une collection Rekordbox (rekordbox.xml)">Importer Rekordbox<input type="file" id="rbxml-input" accept=".xml,application/xml,text/xml" hidden></label>
   <button type="button" id="export-btn" class="btn accent">Exporter vers Rekordbox</button>
   <label class="skin-pick small muted" title="Apparence du mixeur">Skin
-    <select id="skin"><option value="base">Base</option><option value="analog">Analog</option><option value="rotary">Rotary</option></select>
+    <select id="skin"><option value="base">Traktor</option><option value="analog">Analog</option><option value="rotary">Rotary</option></select>
   </label>
   <label class="skin-pick small muted" title="Style de forme d'onde">Onde
     <select id="wave"><option value="rgb">RGB</option><option value="bands">Bandes</option></select>
   </label>
+  <button type="button" id="toggle-decks" class="btn ghost icon" title="Réduire les decks" aria-label="Réduire les decks">▲</button>
   <button type="button" id="lang-btn" class="btn ghost icon" title="Langue / Language"></button>
   <button type="button" id="settings-btn" class="btn ghost icon" title="Réglages" aria-label="Réglages">⚙</button>
 </header>
@@ -33,7 +35,7 @@
 <section class="decks">
   <div class="deck" id="deck-A" data-deck="A"></div>
   <div class="mixer" id="mixer">
-    <div class="mx-head"><span class="mx-screw"></span><span class="mx-name">MIXER</span><span class="mx-skin" id="mx-skin-name"></span></div>
+    <div class="mx-head"><span class="mx-screw"></span><span class="mx-q" title="Tempo du deck maître (celui qui joue)">MASTER</span><span class="mx-bpm" id="mx-bpm">—</span><span class="mx-name">MIXER</span><span class="mx-skin" id="mx-skin-name"></span></div>
     <div class="strips">
     <div class="ch" data-ch="A">
       <span class="lab">A</span>
@@ -64,7 +66,8 @@
 
 <section class="browser">
   <aside class="side">
-    <div class="side-head" data-sec="tree"><span class="sec"><span class="caret open">▸</span>Bibliothèque</span><button type="button" class="mini fold-all" data-target="tree" title="Tout replier">⊟</button></div>
+    <div class="side-search"><input type="search" id="search" placeholder="Rechercher (artiste, titre, album, dossier…)" autocomplete="off"></div>
+    <div class="side-head" data-sec="tree"><span class="sec"><span class="caret open">▸</span>Collection</span><button type="button" class="mini fold-all" data-target="tree" title="Tout replier">⊟</button></div>
     <div id="tree" class="tree"></div>
     <div class="side-head" data-sec="pl-mine"><span class="sec"><span class="caret open">▸</span>Mes playlists</span><button type="button" id="new-pl" class="mini" title="Nouvelle playlist">＋</button></div>
     <div id="pl-mine" class="tree"></div>
@@ -74,10 +77,10 @@
     <div id="pl-rekordbox" class="tree"></div>
   </aside>
   <main class="list">
+    <div id="favs" class="favs" title="Favoris : clic droit sur une playlist ou un dossier à gauche › Ajouter aux favoris"></div>
     <div class="list-head">
       <button type="button" id="toggle-side" class="mini" title="Masquer le panneau" aria-label="Masquer le panneau">◀</button>
       <div id="list-title" class="list-title">Toute la bibliothèque</div>
-      <input type="search" id="search" placeholder="Rechercher (artiste, titre, album, dossier…)" autocomplete="off">
       <span class="bpm-filter small muted" title="N'afficher que les morceaux dans cette plage de BPM">BPM
         <input type="number" id="bpm-min" min="40" max="250" step="0.5" placeholder="min">–<input type="number" id="bpm-max" min="40" max="250" step="0.5" placeholder="max">
         <button type="button" class="mini" id="bpm-near-a" title="Autour du BPM du deck A (±3 %)">≈A</button><button type="button" class="mini" id="bpm-near-b" title="Autour du BPM du deck B (±3 %)">≈B</button><button type="button" class="mini" id="bpm-clear" title="Toute la plage">×</button>
@@ -90,13 +93,14 @@
     </div>
     <div class="table-wrap">
       <table id="tracks">
-        <thead><tr><th class="n" data-sort="index">#</th><th data-sort="artist">Artiste</th><th data-sort="title">Titre</th><th class="r" data-sort="bpm">BPM</th><th data-sort="key" id="key-head" title="Clic : trier — Maj+clic : notation (musicale / Camelot / Open Key)">Ton.</th><th class="r" data-sort="duration">Durée</th><th data-sort="format">Format</th><th class="r" data-sort="cueCount">Cues</th><th class="rate" data-sort="rating" title="Note (importée de Traktor)">★</th><th class="r" data-sort="added" title="Date d'ajout">Ajouté</th><th class="act"></th></tr></thead>
+        <thead><tr><th class="n" data-sort="index">#</th><th class="ic" title="Pré-écoute · deck chargé"></th><th class="cd" title="Couleur">●</th><th data-sort="title">Titre</th><th data-sort="artist">Artiste</th><th class="r" data-sort="bpm">BPM</th><th data-sort="key" id="key-head" title="Clic : trier — Maj+clic : notation (musicale / Camelot / Open Key)">Ton.</th><th class="rate" data-sort="rating" title="Note (importée de Traktor)">Note</th><th class="r" data-sort="duration">Durée</th><th data-sort="format">Format</th><th class="r" data-sort="cueCount">Cues</th><th class="r" data-sort="added" title="Date d'ajout">Ajouté</th><th class="act"></th></tr></thead>
         <tbody></tbody>
       </table>
       <div id="empty" class="empty"></div>
     </div>
   </main>
 </section>
+<footer class="status"><span id="status-l">Prêt…</span><span id="status-r"></span></footer>
 
 <dialog id="modal"><form method="dialog" class="modal-body" id="modal-body"></form></dialog>
 <div id="toasts"></div>
@@ -104,43 +108,57 @@
 <template id="deck-tpl">
   <div class="deck-body">
     <div class="deck-top">
+      <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist"></div><div class="d-album"></div></div>
+      <div class="deck-times"><span class="d-rem">-0:00</span><span class="d-total"></span><span class="d-pos" hidden>0:00.0</span></div>
+      <div class="deck-nums"><button type="button" class="d-bpm" title="BPM — clic pour régler">—</button><span class="d-pct">+0.0%</span><span class="d-orig"></span></div>
       <span class="deck-letter"></span>
-      <div class="deck-meta"><div class="d-title">Glisse un morceau ici</div><div class="d-artist muted"></div></div>
-      <div class="deck-nums"><button type="button" class="d-bpm" title="BPM — clic pour régler">—</button><span class="d-bpm-lab muted small">BPM</span><div class="d-key muted small"></div></div>
     </div>
-    <canvas class="wave-zoom" height="90"></canvas>
+    <div class="deck-row syncrow">
+      <button type="button" class="mini d-sync" title="Caler le tempo sur l'autre deck">SYNC</button>
+      <div class="phase" title="Phase par rapport à l'autre deck (au centre : temps calés)"><span></span><i></i></div>
+      <span class="d-key"></span>
+      <span class="d-status"></span>
+    </div>
+    <div class="wave-row">
+      <canvas class="wave-zoom" height="90"></canvas>
+      <div class="deck-side" title="Tempo (double-clic : 0)">
+        <input type="range" class="d-pitch" min="-8" max="8" step="0.01" value="0" title="Tempo (double-clic : 0)">
+        <span class="d-pitchval">0.00 %</span>
+        <button type="button" class="mini d-range" title="Plage du tempo">±8</button>
+      </div>
+    </div>
     <canvas class="wave-over" height="44"></canvas>
-    <div class="phase" title="Phase par rapport à l'autre deck (au centre : temps calés)"><span></span><i></i></div>
-    <div class="deck-time"><span class="d-pos">0:00.0</span><span class="d-rem muted">-0:00</span><span class="d-status muted small"></span></div>
     <div class="deck-row transport">
+      <button type="button" class="tbtn play" data-a="play" title="Lecture / pause">▶</button>
       <button type="button" class="tbtn cue" data-a="cue" title="CUE : à l'arrêt, pose le point de départ ; en lecture, y revient">CUE</button>
-      <button type="button" class="tbtn play jog" data-a="play" title="Lecture / pause">▶</button>
-      <span class="loops-sep"></span>
-      <button type="button" class="lbtn" data-a="in" title="Début de loop">IN</button>
-      <button type="button" class="lbtn" data-a="out" title="Fin de loop">OUT</button>
-      <button type="button" class="lbtn" data-a="beat4" title="Loop de 4 temps (selon le BPM)">4</button>
-      <button type="button" class="lbtn" data-a="beat8" title="Loop de 8 temps">8</button>
-      <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
+      <span class="loopsz">
+        <button type="button" class="lbtn sz" data-a="b:0.5" title="Loop de 1/2 temps">1/2</button>
+        <button type="button" class="lbtn sz" data-a="b:1" title="Loop de 1 temps">1</button>
+        <button type="button" class="lbtn sz" data-a="b:2" title="Loop de 2 temps">2</button>
+        <button type="button" class="lbtn sz" data-a="b:4" title="Loop de 4 temps (selon le BPM)">4</button>
+        <button type="button" class="lbtn sz" data-a="b:8" title="Loop de 8 temps">8</button>
+        <button type="button" class="lbtn sz" data-a="b:16" title="Loop de 16 temps">16</button>
+      </span>
+      <span class="loopio">
+        <button type="button" class="lbtn" data-a="in" title="Début de loop">IN</button>
+        <button type="button" class="lbtn" data-a="out" title="Fin de loop">OUT</button>
+        <button type="button" class="lbtn" data-a="exit" title="Activer / quitter la loop">⟲</button>
+      </span>
     </div>
     <div class="pads"></div>
     <div class="deck-row grid">
-      <span class="grid-lab muted small">Grille</span>
+      <span class="grid-lab">Grille</span>
       <button type="button" class="lbtn" data-g="tap" title="Tap tempo : clique en rythme">Tap</button>
       <button type="button" class="lbtn" data-g="down" title="Caler le 1er temps sur la tête de lecture">1er temps</button>
       <button type="button" class="lbtn" data-g="half" title="BPM ÷2">÷2</button>
       <button type="button" class="lbtn" data-g="double" title="BPM ×2">×2</button>
       <button type="button" class="lbtn" data-g="auto" title="Détecter automatiquement BPM et grille">Auto</button>
       <button type="button" class="lbtn q on" data-a="q" title="Quantize : cues et loops calés sur la grille de tempo">Q</button>
-      <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">♦ Cue</button>
-      <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">♦ Loop</button>
+      <span class="grow"></span>
+      <button type="button" class="lbtn save" data-a="memcue" title="Enregistrer un memory cue à la position actuelle">◆ Cue</button>
+      <button type="button" class="lbtn save" data-a="memloop" title="Enregistrer la loop (memory loop Rekordbox)">◆ Loop</button>
     </div>
     <div class="memlist"></div>
-  </div>
-  <div class="deck-side" title="Tempo (double-clic : 0)">
-    <span class="d-pitchval">0.00 %</span>
-    <input type="range" class="d-pitch" min="-8" max="8" step="0.01" value="0" title="Tempo (double-clic : 0)">
-    <button type="button" class="mini d-range" title="Plage du tempo">±8</button>
-    <button type="button" class="mini d-sync" title="Caler le tempo sur l'autre deck">SYNC</button>
   </div>
 </template>
 

@@ -108,6 +108,14 @@
 
       // ---------- bibliothèque / library ----------
       'Bibliothèque': 'Library',
+      'Collection': 'Collection', 'Note': 'Rating', 'Prêt…': 'Ready…', 'MASTER': 'MASTER',
+      '{n} morceaux · {d}': '{n} tracks · {d}',
+      'Ajouter aux favoris': 'Add to favorites', 'Retirer des favoris': 'Remove from favorites',
+      '12 favoris au maximum : retires-en un d’abord.': '12 favorites at most: remove one first.',
+      'Favoris : clic droit sur une playlist ou un dossier à gauche › Ajouter aux favoris': 'Favorites: right-click a playlist or folder on the left › Add to favorites',
+      'Pré-écoute · deck chargé': 'Preview · loaded deck', 'Couleur': 'Color',
+      'Tempo du deck maître (celui qui joue)': 'Master deck tempo (the one playing)',
+      'Loop de 1/2 temps': '1/2-beat loop', 'Loop de 1 temps': '1-beat loop', 'Loop de 2 temps': '2-beat loop', 'Loop de 16 temps': '16-beat loop',
       'Mes playlists': 'My playlists',
       'Traktor': 'Traktor',
       'Tout': 'All',

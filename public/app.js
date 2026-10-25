@@ -70,7 +70,7 @@
   }
 
   const HOT_COLORS = ['#28e214', '#ff8c00', '#e13535', '#10b1e2', '#e6d200', '#aa00ff', '#304ff1', '#ff007f'];
-  const PAD = 'ABCDEFGH';
+  const PAD = '12345678'; // numéros des hot cues, comme dans Traktor
 
   async function api(method, url, body) {
     const res = await fetch(url, { method, headers: { 'X-Lang': window.I18N ? window.I18N.lang : 'fr', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: body !== undefined ? JSON.stringify(body) : undefined });
@@ -410,9 +410,10 @@
     get bpm() { return this.track && this.track.bpm ? this.track.bpm : null; }
 
     // ---------- loops ----------
-    setLoop(start, end) {
+    setLoop(start, end, beats = null) {
       const pos = this.position;
       this.loop = { start, end, active: true };
+      this.loopBeats = beats; // taille en temps (bouton allumé), null pour une loop IN/OUT ou une hot loop
       if (this.playing) this.startAt(pos >= start && pos < end ? pos : start);
       else this.offset = start;
       this.renderLoopBtns();
@@ -427,13 +428,15 @@
         const start = this.loopIn ?? (this.loop ? this.loop.start : null);
         if (start === null || pos <= start + 0.05) { toast(t("Pose d'abord le début de la loop (IN).")); return; }
         this.setLoop(start, Math.max(start + 0.05, this.snap(pos))); this.loopIn = null;
-      } else if (a === 'beat4' || a === 'beat8') {
+      } else if (a === 'beat4' || a === 'beat8' || a.startsWith('b:')) {
         if (!this.bpm) { toast(t('BPM inconnu pour ce morceau : pose la loop avec IN / OUT.')); return; }
-        const beats = a === 'beat4' ? 4 : 8;
+        const beats = a === 'beat4' ? 4 : a === 'beat8' ? 8 : Number(a.slice(2));
+        // reclic sur la taille de la loop en cours : on la quitte (comme dans Traktor)
+        if (this.loop && this.loop.active && this.loopBeats === beats) { this.loop.active = false; if (this.playing) this.startAt(this.position); this.renderLoopBtns(); return; }
         const beat = 60 / this.bpm;
         let start = pos;
         if (Number.isFinite(this.track.gridStart)) start = this.track.gridStart + Math.round((pos - this.track.gridStart) / beat) * beat; // calé sur la grille
-        this.setLoop(Math.max(0, start), Math.max(0, start) + beats * beat);
+        this.setLoop(Math.max(0, start), Math.max(0, start) + beats * beat, beats);
       } else if (a === 'exit') {
         if (!this.loop) return;
         const p = this.position;
@@ -493,9 +496,16 @@
       const t = this.track;
       $('.d-title', this.el).textContent = t ? (t.title || t.path) : window.I18N.t('Glisse un morceau ici');
       $('.d-artist', this.el).textContent = t ? t.artist : '';
+      $('.d-album', this.el).textContent = t ? (t.album || '') : '';
       const bpmEl = $('.d-bpm', this.el); // absent pendant l'édition
       if (bpmEl) bpmEl.textContent = this.bpm ? (this.bpm * this.rate).toFixed(2) : '—';
-      $('.d-key', this.el).textContent = t ? [showKey(t.key), t.format].filter(Boolean).join(' · ') : '';
+      const pct = (this.rate - 1) * 100;
+      $('.d-pct', this.el).textContent = t ? `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` : '';
+      $('.d-orig', this.el).textContent = t && this.bpm ? Number(this.bpm).toFixed(2) : '';
+      $('.d-total', this.el).textContent = this.buffer ? fmt(this.duration) : '';
+      const kEl = $('.d-key', this.el);
+      kEl.textContent = t ? [showKey(t.key), t.format].filter(Boolean).join(' · ') : '';
+      kEl.style.color = t && t.key ? keyColor(t.key) : '';
     }
 
     renderTransport() {
@@ -507,6 +517,8 @@
       $('[data-a="in"]', this.el).classList.toggle('armed', this.loopIn !== null);
       $('[data-a="exit"]', this.el).classList.toggle('on', Boolean(this.loop && this.loop.active));
       $('[data-a="q"]', this.el).classList.toggle('on', this.quant);
+      const active = this.loop && this.loop.active ? this.loopBeats : null;
+      $$('.lbtn.sz', this.el).forEach((b) => b.classList.toggle('on', active !== null && Number(b.dataset.a.slice(2)) === active));
     }
 
     renderPads() {
@@ -630,7 +642,12 @@
     }
     let top = 0; for (let i = 0; i < n; i++) if (max[i] > top) top = max[i];
     if (top > 0) for (let i = 0; i < n; i++) { max[i] /= top; lo[i] = Math.min(1, lo[i] / top); mi[i] = Math.min(1, (mi[i] / top) * 1.25); hi[i] = Math.min(1, (hi[i] / top) * 1.7); }
-    return { rate: PEAK_RATE, max, lo, mi, hi };
+    // niveau « typique » de chaque bande sur ce morceau (95e centile) : la couleur RGB compare les bandes à leur propre niveau,
+    // sinon les médiums, toujours les plus forts en énergie, mettent tout en vert
+    // plancher : une bande presque absente (ex. un dub sans aigus) n'est pas gonflée jusqu'à colorer tout le morceau
+    const floorNorm = (v) => { const top = Math.max(...v); return v.map((x) => Math.max(x, top * 0.3)); };
+    const p95 = (arr) => { const st = Math.max(1, Math.floor(arr.length / 4000)); const tmp = []; for (let i = 0; i < arr.length; i += st) tmp.push(arr[i]); tmp.sort((a, b) => a - b); return Math.max(1e-3, tmp[Math.floor(tmp.length * 0.95)] || 0); };
+    return { rate: PEAK_RATE, max, lo, mi, hi, norm: n ? floorNorm([p95(lo), p95(mi), p95(hi)]) : [1, 1, 1] };
   }
 
   /**
@@ -739,21 +756,22 @@
   const RGB_LO = { r: 255, g: 48, b: 48 }, RGB_MI = { r: 46, g: 224, b: 110 }, RGB_HI = { r: 64, g: 120, b: 255 };
   function waveColorsRGB() { return { lo: RGB_LO, mi: RGB_MI, hi: RGB_HI }; }
 
-  /** Colonne « RGB » (façon Mixxx) : chaque bande pilote un canal (graves = rouge, médiums = vert, aigus = bleu),
-   *  normalisé par la bande dominante pour une couleur vive ; la hauteur = amplitude globale. */
+  /** Colonne « RGB » façon Traktor / Mixxx : graves = rouge, médiums = vert, aigus = bleu, et les mélanges
+   *  (kick + médiums = orange / jaune, charley = bleu / magenta, plein spectre = blanc). Chaque bande est rapportée
+   *  à son niveau typique sur le morceau (cols.norm), puis pondérée : les médiums sont retenus pour ne pas tout verdir. */
   function drawColumnRGB(g, x, h, v, cols, scale) {
     const [m, l, md, hh] = v;
-    const mid = h / 2;
-    const mx = Math.max(l, md, hh, 1e-4);
-    // teinte vive (la bande la plus forte sature son canal), avec un plancher pour ne pas éteindre les autres canaux
-    const ch = (b) => { const u = b / mx; return 40 + u * u * 215; };
+    const N = cols.norm || [1, 1, 1];
+    const L = l / N[0], M = (md / N[1]) * 0.62, H = (hh / N[2]) * 1.15;
+    const mx = Math.max(L, M, H, 1e-4); const w = Math.min(L, M, H) / mx;
+    const ch = (b) => 25 + 230 * Math.pow((b / mx) * 0.88 + 0.12 * w, 1.4);
     const bar = Math.max(1, m * scale);
-    g.fillStyle = `rgb(${ch(l) | 0},${ch(md) | 0},${ch(hh) | 0})`;
-    g.fillRect(x, mid - bar / 2, 1, bar);
+    g.fillStyle = `rgb(${ch(L) | 0},${ch(M) | 0},${ch(H) | 0})`;
+    g.fillRect(x, h / 2 - bar / 2, 1, bar);
   }
 
   /** Renvoie les couleurs et la fonction de dessin selon le style choisi. */
-  function wavePaint() { return waveStyle === 'rgb' ? { cols: waveColorsRGB(), draw: drawColumnRGB } : { cols: waveColors(), draw: drawColumn }; }
+  function wavePaint(d) { return waveStyle === 'rgb' ? { cols: { ...waveColorsRGB(), norm: d && d.peaks && d.peaks.norm }, draw: drawColumnRGB } : { cols: waveColors(), draw: drawColumn }; }
 
   /** Pics d'une plage d'indices [i0, i1[ (le plus fort de chaque bande). */
   function peakRange(pk, i0, i1) {
@@ -788,11 +806,20 @@
   function overviewImage(d, w, h) {
     if (d.overCache && d.overCache.w === w && d.overCache.h === h && d.overCache.peaks === d.peaks && d.overCache.skin === document.body.dataset.skin && d.overCache.wave === waveStyle) return d.overCache.canvas;
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    const g = cv.getContext('2d'); const { cols, draw } = wavePaint(); const n = d.peaks.max.length;
+    const g = cv.getContext('2d'); const { cols, draw } = wavePaint(d); const n = d.peaks.max.length;
+    const colsV = [];
     for (let x = 0; x < w; x++) {
       const a = Math.floor((x / w) * n); const b = Math.max(a + 1, Math.floor(((x + 1) / w) * n));
-      draw(g, x, h, peakRange(d.peaks, a, b), cols, h - 4);
+      colsV.push(peakRange(d.peaks, a, b));
     }
+    // vue d'ensemble : chaque colonne prend le MAX de plusieurs secondes, ce qui gonfle surtout les aigus (transitoires) ;
+    // on recale donc les bandes sur leur propre niveau typique à cette échelle, pour garder les mêmes teintes que la vue zoomée
+    if (cols.norm) {
+      const p = (k) => { const v = colsV.map((c) => c[k]).sort((x, y) => x - y); return Math.max(1e-3, v[Math.floor(v.length * 0.9)] || 0); };
+      const raw = [p(1), p(2), p(3)]; const top = Math.max(...raw);
+      cols.norm = raw.map((x) => Math.max(x, top * 0.3));
+    }
+    for (let x = 0; x < w; x++) draw(g, x, h, colsV[x], cols, h - 4);
     d.overCache = { w, h, peaks: d.peaks, skin: document.body.dataset.skin, wave: waveStyle, canvas: cv };
     return cv;
   }
@@ -810,7 +837,7 @@
       g.fillStyle = 'rgba(8,9,11,.55)'; g.fillRect(0, 0, px, h); // partie déjà jouée assombrie
       if (d.loop) { g.fillStyle = d.loop.active ? 'rgba(60,207,110,.28)' : 'rgba(255,255,255,.08)'; g.fillRect((d.loop.start / d.duration) * w, 0, Math.max(2, ((d.loop.end - d.loop.start) / d.duration) * w), h); }
       for (const c of d.cues) { g.fillStyle = cueColor(c); g.fillRect(Math.round((c.start / d.duration) * w), 0, 2 * dpr, h); }
-      g.fillStyle = '#fff'; g.fillRect(Math.round(px), 0, 2 * dpr, h);
+      g.fillStyle = '#ff3b3b'; g.fillRect(Math.round(px), 0, 2 * dpr, h);
     }
     // --- vue zoomée (la tête de lecture au centre) ---
     const zoom = $('.wave-zoom', d.el);
@@ -822,7 +849,7 @@
       const span = ZOOM_SECONDS;
       const t0 = pos - span / 2;
       const perPx = (span * d.peaks.rate) / w;
-      const { cols, draw } = wavePaint();
+      const { cols, draw } = wavePaint(d);
       if (d.loop) {
         const x1 = ((d.loop.start - t0) / span) * w; const x2 = ((d.loop.end - t0) / span) * w;
         g.fillStyle = d.loop.active ? 'rgba(60,207,110,.20)' : 'rgba(255,255,255,.06)'; g.fillRect(x1, 0, x2 - x1, h);
@@ -860,8 +887,8 @@
       }
       if (!d.playing && Number.isFinite(d.mainCue)) { const x = ((d.mainCue - t0) / span) * w; g.fillStyle = '#e6b422'; g.fillRect(Math.round(x), h - 6 * dpr, 2 * dpr, 6 * dpr); }
       // tête de lecture lumineuse
-      g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(Math.round(w / 2) - 3 * dpr, 0, 8 * dpr, h);
-      g.fillStyle = '#fff'; g.fillRect(Math.round(w / 2), 0, 2 * dpr, h);
+      g.fillStyle = 'rgba(255,60,60,.22)'; g.fillRect(Math.round(w / 2) - 2 * dpr, 0, 6 * dpr, h);
+      g.fillStyle = '#ff3b3b'; g.fillRect(Math.round(w / 2), 0, 2 * dpr, h); // tête de lecture rouge, comme dans Traktor
     } else if ($('.d-status', d.el).textContent) {
       g.fillStyle = '#5b6168'; g.font = `${12 * dpr}px system-ui`; g.fillText($('.d-status', d.el).textContent, 12 * dpr, h / 2);
     }
@@ -899,8 +926,15 @@
     el.classList.toggle('locked', Math.abs(diff) < 0.04);
   }
 
+  let lastClock = '';
   function frame() {
     drawDeck(decks.A); drawDeck(decks.B);
+    // tempo du deck maître (celui qui joue ; sinon le deck de référence) + horloge, comme la barre du haut de Traktor
+    const m = [decks.A, decks.B].find((d) => d.playing && d.bpm) || (refDeck && refDeck.bpm ? refDeck : null);
+    const mb = m ? (m.bpm * m.rate).toFixed(2) : '—';
+    const mEl = $('#mx-bpm'); if (mEl && mEl.textContent !== mb) mEl.textContent = mb;
+    const now = new Date(); const ck = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (ck !== lastClock) { lastClock = ck; const c = $('#clock'); if (c) c.textContent = ck; }
     for (const d of [decks.A, decks.B]) d.el.classList.toggle('playing', d.playing);
     requestAnimationFrame(frame);
   }
@@ -1129,14 +1163,45 @@
             row.addEventListener('dragleave', () => row.classList.remove('drop'));
             row.addEventListener('drop', (ev) => { const id = ev.dataTransfer.getData('application/x-fadarr-playlist'); if (id) { ev.preventDefault(); ev.stopPropagation(); row.classList.remove('drop'); n.plDrop(id); } });
           }
-          if (n.menu) { // clic droit : menu contextuel façon Traktor
-            row.addEventListener('contextmenu', (ev) => { ev.stopPropagation(); const items = typeof n.menu === 'function' ? n.menu() : n.menu; if (items && items.length) contextMenu(ev, items); });
+          if (n.select) this._nodes.set(n.key, { label: n.label, select: n.select });
+          if (n.menu || n.select) { // clic droit : menu contextuel façon Traktor (+ favoris)
+            row.addEventListener('contextmenu', (ev) => {
+              ev.stopPropagation();
+              const items = (typeof n.menu === 'function' ? n.menu() : n.menu) || [];
+              if (n.select) { if (items.length) items.push({ sep: true }); items.push(this.isFav(n.key) ? { label: t('Retirer des favoris'), fn: () => this.toggleFav(n.key) } : { label: t('Ajouter aux favoris'), fn: () => this.toggleFav(n.key) }); }
+              if (items.length) contextMenu(ev, items);
+            });
           }
           parent.appendChild(row);
           if (hasKids) { parent.appendChild(kids); walk(n.children, depth + 1, kids); }
         }
       };
       walk(roots, 0, box);
+      this.renderFavs();
+    },
+
+    // ---------- favoris (grille du haut, comme les favoris de Traktor) : clic droit sur une playlist / un dossier ----------
+    _nodes: new Map(),
+    favs: (() => { try { const v = JSON.parse(localStorage.getItem('fadarr-favs')); if (Array.isArray(v)) return v; } catch (e) { /* rien */ } return ['all', 'recent']; })(),
+    isFav(key) { return this.favs.includes(key); },
+    toggleFav(key) {
+      if (this.isFav(key)) this.favs = this.favs.filter((k) => k !== key);
+      else if (this.favs.length >= 12) { toast(t('12 favoris au maximum : retires-en un d’abord.')); return; }
+      else this.favs.push(key);
+      try { localStorage.setItem('fadarr-favs', JSON.stringify(this.favs)); } catch (e) { /* rien */ }
+      this.renderFavs();
+    },
+    renderFavs() {
+      const box = $('#favs'); if (!box) return;
+      const cur = this._curKey;
+      let html = '';
+      for (let i = 0; i < 12; i++) {
+        const key = this.favs[i]; const node = key && this._nodes.get(key);
+        if (!node) { html += '<div class="fav empty"></div>'; continue; }
+        const kind = key.startsWith('pl:') ? 'pl' : key.startsWith('folder:') ? 'fd' : 'st';
+        html += `<button type="button" class="fav${key === cur ? ' on' : ''}" data-fav="${esc(key)}"><span class="fic ${kind}"></span><span class="lbl">${esc(node.label)}</span></button>`;
+      }
+      box.innerHTML = html;
     },
 
     /** Ouvre les dossiers parents du nœud choisi (pour qu'il soit visible). */
@@ -1309,6 +1374,7 @@
     markSel() {
       const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : `pl:${this.view.id}`;
       $$('.node[data-key]').forEach((n) => n.classList.toggle('sel', n.dataset.key === key));
+      this._curKey = key; this.renderFavs();
       this.revealSel(key);
     },
 
@@ -1399,16 +1465,23 @@
       const ref = refDeck && refDeck.track && refDeck.track.path !== t.path ? refDeck : null;
       const kc = ref ? keyCompat(t.key, ref.track.key) : 0;
       const bc = ref ? bpmCompat(t.bpm, ref.bpm ? ref.bpm * ref.rate : null) : 0;
-      const cls = [t.missing ? 'missing' : '', kc && bc ? 'match' : '',
+      const cls = [t.missing ? 'missing' : '', kc && bc ? 'match' : '', this._sel === t.path ? 'sel' : '',
         (refDeck && refDeck.track && refDeck.track.path === t.path) ? `loaded-${refDeck.id.toLowerCase()}` : ''].filter(Boolean).join(' ');
       const keyStyle = t.key && !kc ? ` style="color:${keyColor(t.key)}"` : '';
-      return `<td class="n"><span class="cdot" data-cdot="1"${t.color ? ` style="background:${t.color}"` : ''} title="${window.I18N.t('Clic : couleur')}"></span>${num}</td><td>${esc(t.artist)}</td><td title="${esc(t.path)}">${esc(t.title)}</td>`
-        + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}"${keyStyle} title="${esc(t.key || '')}">${esc(showKey(t.key))}</td><td class="r">${t.duration ? fmt(t.duration) : ''}</td>`
-        + `<td class="muted">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r">${t.cueCount || ''}</td>`
+      const T = window.I18N.t;
+      const onA = decks.A && decks.A.track && decks.A.track.path === t.path; const onB = decks.B && decks.B.track && decks.B.track.path === t.path;
+      const deckTag = `${onA ? '<span class="dk a">A</span>' : ''}${onB ? '<span class="dk b">B</span>' : ''}`;
+      return `<td class="n">${num}</td>`
+        + `<td class="ic">${t.missing ? '' : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${T('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button>`}${deckTag}</td>`
+        + `<td class="cd"><span class="cdot" data-cdot="1"${t.color ? ` style="background:${t.color}"` : ''} title="${T('Clic : couleur')}"></span></td>`
+        + `<td class="ti" title="${esc(t.path)}">${esc(t.title)}</td><td>${esc(t.artist)}</td>`
+        + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}"${keyStyle} title="${esc(t.key || '')}">${esc(showKey(t.key))}</td>`
         + `<td class="rate">${ratingStars(t.rating)}</td>`
-        + `<td class="r muted small" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
-        + `<td class="act">${t.missing ? `<span class="muted small">${window.I18N.t('absent du NAS')}</span>` : `<button type="button" class="pv${preview.path === t.path ? ' on' : ''}" data-pv="1" title="${window.I18N.t('Pré-écoute (sans charger de deck)')}">${preview.path === t.path ? '■' : '▶'}</button><button type="button" class="ld a" data-l="A">A</button><button type="button" class="ld b" data-l="B">B</button>`}`
-        + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${window.I18N.t('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${window.I18N.t('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
+        + `<td class="r dim">${t.duration ? fmt(t.duration) : ''}</td>`
+        + `<td class="dim">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r dim">${t.cueCount || ''}</td>`
+        + `<td class="r dim" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
+        + `<td class="act">${t.missing ? `<span class="muted small">${T('absent du NAS')}</span>` : `<button type="button" class="ld a" data-l="A" title="${T('Charger dans A')}">A</button><button type="button" class="ld b" data-l="B" title="${T('Charger dans B')}">B</button>`}`
+        + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${T('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${T('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
         + `<td class="vcls" hidden>${cls}</td>`;
     },
 
@@ -1418,6 +1491,16 @@
       this._vrows = this.visibleRows();
       $('#empty').textContent = this._vrows.length ? '' : t(this.rows.length ? 'Aucun morceau dans cette plage de BPM.' : (this.view.type === 'playlist' ? 'Playlist vide : glisse des morceaux dessus depuis la bibliothèque.' : (nas && nas.tracks ? 'Aucun morceau ne correspond.' : 'Bibliothèque vide : clique sur « Analyser le NAS ».')));
       this.paintWindow();
+      this.renderStatus();
+    },
+
+    /** Barre d'état en bas, comme Traktor : nombre de morceaux et durée totale de la liste affichée. */
+    renderStatus() {
+      const rows = this._vrows || [];
+      const secs = rows.reduce((a, r) => a + (Number(r.duration) || 0), 0);
+      const hh = Math.floor(secs / 3600); const mm = Math.round((secs % 3600) / 60);
+      const dur = hh ? `${hh} h ${String(mm).padStart(2, '0')} min` : `${mm} min`;
+      $('#status-r').textContent = t('{n} morceaux · {d}', { n: rows.length.toLocaleString(window.I18N.locale), d: dur });
     },
 
     /** Ne peuple le tableau qu'autour de la zone visible, avec deux cales (haut / bas) pour garder la bonne hauteur de scroll. */
@@ -1433,14 +1516,14 @@
       const last = Math.min(n, first + count);
       const top = first * h;
       const bottom = Math.max(0, (n - last) * h);
-      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="11"></td></tr>` : '';
+      let html = top ? `<tr class="vspacer" style="height:${top}px"><td colspan="13"></td></tr>` : '';
       for (let i = first; i < last; i++) {
         const tr = rows[i];
         const num = (this.current ? tr.index : i) + 1;
         const tint = /^#[0-9a-f]{6}$/i.test(tr.color || '') ? ` style="--rowc:${tr.color}"` : '';
         html += `<tr data-path="${esc(tr.path)}" data-vi="${i}"${tr.missing ? '' : ' draggable="true"'}${tint}>${this.rowHtml(tr, num)}</tr>`;
       }
-      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="11"></td></tr>`;
+      if (bottom) html += `<tr class="vspacer" style="height:${bottom}px"><td colspan="13"></td></tr>`;
       body.innerHTML = html;
       // reporte les classes (match / loaded / missing) calculées dans rowHtml
       $$('#tracks tbody tr[data-vi]').forEach((tr) => { const c = $('.vcls', tr); if (c) { if (c.textContent) tr.className = c.textContent; c.remove(); } });
@@ -1454,9 +1537,17 @@
       let raf = null;
       wrap.addEventListener('scroll', () => { if (raf) return; raf = requestAnimationFrame(() => { raf = null; this.paintWindow(); }); });
       window.addEventListener('resize', () => this.paintWindow());
+      const favs = $('#favs');
+      favs.addEventListener('click', (ev) => { const b = ev.target.closest('[data-fav]'); const n = b && this._nodes.get(b.dataset.fav); if (n) n.select(); });
+      favs.addEventListener('contextmenu', (ev) => { const b = ev.target.closest('[data-fav]'); if (!b) return; contextMenu(ev, [{ label: t('Retirer des favoris'), fn: () => this.toggleFav(b.dataset.fav) }]); });
       const rowOf = (el) => { const tr = el.closest && el.closest('tr[data-vi]'); return tr ? this._vrows[Number(tr.dataset.vi)] : null; };
       body.addEventListener('click', (ev) => {
         const t = rowOf(ev.target); if (!t) return;
+        if (this._sel !== t.path) { // sélection (ligne bleue, comme dans Traktor)
+          this._sel = t.path;
+          $$('#tracks tbody tr.sel').forEach((r) => r.classList.remove('sel'));
+          const tr = ev.target.closest('tr[data-vi]'); if (tr) tr.classList.add('sel');
+        }
         const star = ev.target.closest('[data-rate]');
         if (star) { const n = Number(star.dataset.rate); const cur = Math.round((t.rating || 0) / 51); this.setRating(t, (n === cur ? 0 : n) * 51); return; }
         if (ev.target.closest('[data-cdot]') && !t.missing) { this.openColorMenu(ev, t); return; }
