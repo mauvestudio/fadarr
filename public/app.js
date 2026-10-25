@@ -764,7 +764,7 @@
     const N = cols.norm || [1, 1, 1];
     const L = l / N[0], M = (md / N[1]) * 0.62, H = (hh / N[2]) * 1.15;
     const mx = Math.max(L, M, H, 1e-4); const w = Math.min(L, M, H) / mx;
-    const ch = (b) => 25 + 230 * Math.pow((b / mx) * 0.88 + 0.12 * w, 1.4);
+    const ch = cols.contrast ? (b) => 30 + 225 * Math.pow(b / mx, 2.2) : (b) => 25 + 230 * Math.pow((b / mx) * 0.88 + 0.12 * w, 1.4);
     const bar = Math.max(1, m * scale);
     g.fillStyle = `rgb(${ch(L) | 0},${ch(M) | 0},${ch(H) | 0})`;
     g.fillRect(x, h / 2 - bar / 2, 1, bar);
@@ -810,14 +810,27 @@
     const colsV = [];
     for (let x = 0; x < w; x++) {
       const a = Math.floor((x / w) * n); const b = Math.max(a + 1, Math.floor(((x + 1) / w) * n));
-      colsV.push(peakRange(d.peaks, a, b));
+      const v = peakRange(d.peaks, a, b);
+      if (cols.norm) { // couleur : énergie MOYENNE de chaque bande sur la colonne (le max, lui, ne garde que la hauteur)
+        let l = 0, md = 0, hh = 0; const k = b - a;
+        for (let i = a; i < b && i < n; i++) { l += d.peaks.lo[i]; md += d.peaks.mi[i]; hh += d.peaks.hi[i]; }
+        v[1] = l / k; v[2] = md / k; v[3] = hh / k;
+      }
+      colsV.push(v);
     }
     // vue d'ensemble : chaque colonne prend le MAX de plusieurs secondes, ce qui gonfle surtout les aigus (transitoires) ;
     // on recale donc les bandes sur leur propre niveau typique à cette échelle, pour garder les mêmes teintes que la vue zoomée
     if (cols.norm) {
-      const p = (k) => { const v = colsV.map((c) => c[k]).sort((x, y) => x - y); return Math.max(1e-3, v[Math.floor(v.length * 0.9)] || 0); };
-      const raw = [p(1), p(2), p(3)]; const top = Math.max(...raw);
-      cols.norm = raw.map((x) => Math.max(x, top * 0.3));
+      // chaque bande rapportée à son niveau médian sur le morceau : un passage plus riche en graves vire au rouge / orange,
+      // un break sans kick au vert, un passage brillant au bleu / blanc (comme la vue d'ensemble de Traktor)
+      const p = (k) => { const v = colsV.map((c) => c[k]).sort((x, y) => x - y); return Math.max(1e-4, v[Math.floor(v.length * 0.5)] || 0); };
+      const raw = [p(1), p(2) * 0.62, p(3) * 1.15]; const top = Math.max(...raw); // compense les poids de drawColumnRGB : bandes à égalité au niveau médian
+      cols.norm = raw.map((x) => Math.max(x, top * 0.05));
+      cols.contrast = true;
+      // lissage sur quelques colonnes voisines : des plages de couleur par passage plutôt qu'un arc-en-ciel colonne par colonne
+      const R = Math.max(2, Math.round(w / 220));
+      const sm = colsV.map((c, x) => { const o = [c[0], 0, 0, 0]; let k = 0; for (let j = Math.max(0, x - R); j <= Math.min(colsV.length - 1, x + R); j++) { o[1] += colsV[j][1]; o[2] += colsV[j][2]; o[3] += colsV[j][3]; k++; } o[1] /= k; o[2] /= k; o[3] /= k; return o; });
+      for (let x = 0; x < colsV.length; x++) colsV[x] = sm[x];
     }
     for (let x = 0; x < w; x++) draw(g, x, h, colsV[x], cols, h - 4);
     d.overCache = { w, h, peaks: d.peaks, skin: document.body.dataset.skin, wave: waveStyle, canvas: cv };
