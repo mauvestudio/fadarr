@@ -522,9 +522,9 @@ body { font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
 canvas { border-radius: 0; background: #060606; }
 canvas.wave-zoom { height: 118px; box-shadow: none; }
 canvas.wave-over { height: 38px; background: #0a0a0a; }
-.deck-side { width: 34px; padding: 0; gap: 3px; background: #121212; }
+.deck-side { width: 40px; padding: 0; gap: 3px; background: #121212; }
 .deck-side .d-pitch { min-height: 0; height: 88px; flex: none; width: 22px; accent-color: #9a9a9a; }
-.deck-side .d-pitchval { font-size: 9px; }
+.deck-side .d-pitchval { font-size: 8.5px; white-space: nowrap; letter-spacing: -.02em; }
 .deck-side .d-range { font-size: 9px; padding: 1px 0; border: 0; background: transparent; color: var(--muted); }
 .deck-row.transport { gap: 3px; flex-wrap: nowrap; }
 .tbtn { height: 34px; width: auto; min-width: 54px; padding: 0 10px; border-radius: 0; border: 0; background: transparent; color: #d9d9d9; font-weight: 500; font-size: 14px; letter-spacing: .03em; }

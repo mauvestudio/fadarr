@@ -108,6 +108,18 @@
 
       // ---------- bibliothèque / library ----------
       'Bibliothèque': 'Library',
+      'Dossier local': 'Local folder',
+      "Ouvrir un dossier de cet ordinateur (les morceaux sont lus dans le navigateur, rien n'est envoyé au serveur)": 'Open a folder on this computer (tracks are read in the browser, nothing is sent to the server)',
+      'Aucun dossier : ＋ pour en ouvrir un sur cet ordinateur': 'No folder: ＋ to open one on this computer',
+      'Aucun fichier audio dans ce dossier.': 'No audio files in this folder.',
+      '{n} morceaux chargés depuis « {name} » (lus sur cet ordinateur, rien n’est envoyé au serveur).': '{n} tracks loaded from “{name}” (read on this computer, nothing is sent to the server).',
+      'Fermer ce dossier': 'Close this folder', 'Ouvrir un autre dossier…': 'Open another folder…',
+      '{name} (sur cet ordinateur)': '{name} (on this computer)',
+      'Fichier local introuvable : rouvre le dossier.': 'Local file not found: reopen the folder.',
+      'Fichier AIFF illisible.': 'Unreadable AIFF file.', 'AIFF compressé non pris en charge ({c}).': 'Compressed AIFF not supported ({c}).',
+      'Stockage du navigateur plein : réglage non gardé.': 'Browser storage full: setting not saved.',
+      'Un morceau d’un dossier local ne peut pas aller dans une playlist : il n’est pas sur le NAS.': 'A track from a local folder can’t go into a playlist: it isn’t on the NAS.',
+      '1er temps': 'Beat 1',
       'Collection': 'Collection', 'Note': 'Rating', 'Prêt…': 'Ready…', 'MASTER': 'MASTER',
       '{n} morceaux · {d}': '{n} tracks · {d}',
       'Ajouter aux favoris': 'Add to favorites', 'Retirer des favoris': 'Remove from favorites',

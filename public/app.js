@@ -217,18 +217,25 @@
       this.status(t('Chargement…'));
       this.renderInfo();
       try {
-        const [full, res] = await Promise.all([
-          api('GET', `/api/track?path=${encodeURIComponent(track.path)}`),
-          fetch(`/api/audio?path=${encodeURIComponent(track.path)}`, { headers: { 'X-Lang': window.I18N.lang } })
-        ]);
-        if (!res.ok) { let msg = `Erreur ${res.status}`; try { msg = (await res.json()).error || msg; } catch (e) { /* texte */ } throw new Error(msg); }
-        const data = await res.arrayBuffer();
+        let full, data;
+        if (local.isLocal(track.path)) { // dossier de cet ordinateur : lu directement dans le navigateur
+          full = local.full(track.path);
+          data = await local.arrayBuffer(track.path);
+        } else {
+          const [fullR, res] = await Promise.all([
+            api('GET', `/api/track?path=${encodeURIComponent(track.path)}`),
+            fetch(`/api/audio?path=${encodeURIComponent(track.path)}`, { headers: { 'X-Lang': window.I18N.lang } })
+          ]);
+          if (!res.ok) { let msg = `Erreur ${res.status}`; try { msg = (await res.json()).error || msg; } catch (e) { /* texte */ } throw new Error(msg); }
+          full = fullR; data = await res.arrayBuffer();
+        }
         if (token !== this.loading) return;
         this.status(t('Décodage…'));
         const buf = await ctx.decodeAudioData(data);
         if (token !== this.loading) return;
         this.track = full;
         this.buffer = buf;
+        if (local.isLocal(full.path) && !full.duration) { full.duration = buf.duration; local.patch(full.path, { duration: Math.round(buf.duration) }); library.paintWindow(); }
         this.cues = full.cues || [];
         const firstHot = this.cues.find((c) => c.kind !== 'loop' && c.kind === 'memory') || null;
         this.mainCue = firstHot ? firstHot.start : 0;
@@ -335,7 +342,8 @@
         restore();
         if (path && Number.isFinite(v) && v >= 40 && v <= 250) {
           try {
-            await api('PUT', '/api/track/meta', { path, bpm: v });
+            if (local.isLocal(path)) local.patch(path, { bpm: Math.round(v * 100) / 100 });
+            else await api('PUT', '/api/track/meta', { path, bpm: v });
             if (this.track && this.track.path === path) { this.track.bpm = Math.round(v * 100) / 100; this.renderInfo(); }
             library.updateBpm(path, Math.round(v * 100) / 100);
             if (refDeck === this) library.renderRows();
@@ -354,7 +362,8 @@
       if (!this.track) return;
       const path = this.track.path;
       try {
-        await api('PUT', '/api/track/meta', { path, ...patch, ...(auto ? { auto: true } : {}) });
+        if (local.isLocal(path)) local.patch(path, patch);
+        else await api('PUT', '/api/track/meta', { path, ...patch, ...(auto ? { auto: true } : {}) });
         if (this.track && this.track.path === path) {
           if (patch.bpm != null) this.track.bpm = Math.round(patch.bpm * 100) / 100;
           if ('gridStart' in patch) this.track.gridStart = patch.gridStart;
@@ -481,6 +490,7 @@
       this.renderPads(); this.renderMem();
       if (!this.track) return;
       const path = this.track.path;
+      if (local.isLocal(path)) { local.patch(path, { cues: this.cues }); library.updateCount(path, this.cues.length); return; }
       clearTimeout(this.saveTimer);
       this.saveTimer = setTimeout(async () => {
         try {
@@ -1385,7 +1395,7 @@
     },
 
     markSel() {
-      const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : `pl:${this.view.id}`;
+      const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : this.view.type === 'local' ? `localv:${this.view.path}` : `pl:${this.view.id}`;
       $$('.node[data-key]').forEach((n) => n.classList.toggle('sel', n.dataset.key === key));
       this._curKey = key; this.renderFavs();
       this.revealSel(key);
@@ -1422,6 +1432,10 @@
             await api('DELETE', `/api/playlists/${p.id}`); await this.loadPlaylists(); this.show({ type: 'all' });
           }));
         }
+      } else if (view.type === 'local') {
+        $('#list-title').textContent = view.path ? `${local.name} / ${view.path}` : t('{name} (sur cet ordinateur)', { name: local.name || t('Dossier local') });
+        this.rows = local.rows(view.path, q);
+        if (local.tracks.length) actions.appendChild(button(t('Fermer ce dossier'), () => local.close()));
       } else {
         $('#list-title').textContent = view.type === 'folder' ? view.path : view.type === 'recent' ? t('Ajouts récents (30 jours)') : t('Toute la bibliothèque');
         const params = new URLSearchParams({ q });
@@ -1494,7 +1508,7 @@
         + `<td class="dim">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r dim">${t.cueCount || ''}</td>`
         + `<td class="r dim" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
         + `<td class="act">${t.missing ? `<span class="muted small">${T('absent du NAS')}</span>` : `<button type="button" class="ld a" data-l="A" title="${T('Charger dans A')}">A</button><button type="button" class="ld b" data-l="B" title="${T('Charger dans B')}">B</button>`}`
-        + `${this._editable ? `<button type="button" class="mini" data-x="1" title="${T('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${T('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
+        + `${t.local ? '' : this._editable ? `<button type="button" class="mini" data-x="1" title="${T('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${T('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
         + `<td class="vcls" hidden>${cls}</td>`;
     },
 
@@ -1635,6 +1649,7 @@
       tr.rating = rating;
       this.paintWindow();
       for (const d of Object.values(decks)) if (d.track && d.track.path === tr.path) { d.track.rating = rating; }
+      if (local.isLocal(tr.path)) { local.patch(tr.path, { rating }); return; }
       try { await api('PUT', '/api/track/meta', { path: tr.path, rating }); } catch (e) { toast(e.message, 'error'); }
     },
 
@@ -1643,6 +1658,7 @@
       tr.color = color;
       this.paintWindow();
       for (const d of Object.values(decks)) if (d.track && d.track.path === tr.path) { d.track.color = color; }
+      if (local.isLocal(tr.path)) { local.patch(tr.path, { color }); return; }
       try { await api('PUT', '/api/track/meta', { path: tr.path, color }); } catch (e) { toast(e.message, 'error'); }
     },
 
@@ -1659,6 +1675,11 @@
     openColorMenu(ev, tr) { contextMenu(ev, this.colorItems(tr)); },
 
     async addTo(id, paths) {
+      if (paths.some((p) => local.isLocal(p))) {
+        paths = paths.filter((p) => !local.isLocal(p));
+        toast(t('Un morceau d’un dossier local ne peut pas aller dans une playlist : il n’est pas sur le NAS.'), 'error');
+        if (!paths.length) return;
+      }
       try {
         const p = await api('GET', `/api/playlists/${id}`);
         const tracks = p.tracks.concat(paths.filter((x) => !p.tracks.includes(x)));
@@ -1672,13 +1693,122 @@
     updateCount(path, n) {
       const row = this.rows.find((r) => r.path === path); if (row) row.cueCount = n;
       const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.cueCount = n;
-      const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(8)`); if (tr) tr.textContent = n || '';
+      const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(11)`); if (tr) tr.textContent = n || ''; // colonne Cues
     },
 
     updateBpm(path, bpm) {
       const row = this.rows.find((r) => r.path === path); if (row) row.bpm = bpm;
       const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.bpm = bpm;
     }
+  };
+
+  // ===========================================================================
+  // DOSSIER LOCAL : jouer des morceaux d'un dossier de CET ordinateur, sans rien envoyer au serveur.
+  // Les fichiers sont lus dans le navigateur ; BPM, grille, cues, note et couleur sont gardés dans ce navigateur
+  // (localStorage), pas dans fadarr. Le NAS reste la bibliothèque principale.
+  // ===========================================================================
+  const LOCAL_AUDIO = /\.(mp3|wav|aiff?|flac|m4a|aac|ogg|opus)$/i;
+
+  /** AIFF -> WAV (mêmes échantillons, sans perte) : Chrome et Firefox ne décodent pas l'AIFF. Gère AIFF et AIFF-C non compressé. */
+  function aiffToWav(ab) {
+    const v = new DataView(ab);
+    const id = (o) => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+    if (id(0) !== 'FORM' || !['AIFF', 'AIFC'].includes(id(8))) throw new Error(window.I18N.t('Fichier AIFF illisible.'));
+    let ch = 0, frames = 0, bits = 0, rate = 0, little = false, data = -1;
+    for (let o = 12; o + 8 <= v.byteLength;) {
+      const cid = id(o); const size = v.getUint32(o + 4); const p = o + 8;
+      if (cid === 'COMM') {
+        ch = v.getUint16(p); frames = v.getUint32(p + 2); bits = v.getUint16(p + 6);
+        const exp = v.getUint16(p + 8) & 0x7fff; const hi = v.getUint32(p + 10); const lo = v.getUint32(p + 14);
+        rate = Math.round((hi * 4294967296 + lo) * Math.pow(2, exp - 16383 - 63));
+        if (id(8) === 'AIFC' && size >= 22) {
+          const comp = id(p + 18);
+          if (comp === 'sowt') little = true; else if (comp !== 'NONE' && comp !== 'twos') throw new Error(window.I18N.t('AIFF compressé non pris en charge ({c}).', { c: comp }));
+        }
+      } else if (cid === 'SSND') data = p + 8 + v.getUint32(p);
+      o = p + size + (size % 2);
+    }
+    if (!ch || !rate || data < 0 || ![8, 16, 24, 32].includes(bits)) throw new Error(window.I18N.t('Fichier AIFF illisible.'));
+    const bps = bits / 8; const len = Math.min(frames * ch * bps, v.byteLength - data);
+    const out = new ArrayBuffer(44 + len); const w = new DataView(out); const src = new Uint8Array(ab, data, len); const dst = new Uint8Array(out, 44);
+    const str = (o, t) => { for (let i = 0; i < 4; i++) w.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); w.setUint32(4, 36 + len, true); str(8, 'WAVE'); str(12, 'fmt '); w.setUint32(16, 16, true);
+    w.setUint16(20, 1, true); w.setUint16(22, ch, true); w.setUint32(24, rate, true); w.setUint32(28, rate * ch * bps, true);
+    w.setUint16(32, ch * bps, true); w.setUint16(34, bits, true); str(36, 'data'); w.setUint32(40, len, true);
+    if (bps === 1) for (let i = 0; i < len; i++) dst[i] = (src[i] + 128) & 255; // AIFF 8 bits signé -> WAV 8 bits non signé
+    else if (little) dst.set(src);
+    else for (let i = 0; i < len; i += bps) for (let b = 0; b < bps; b++) dst[i + b] = src[i + bps - 1 - b]; // gros-boutiste -> petit-boutiste
+    return out;
+  }
+
+  const local = {
+    name: '', files: new Map(), tracks: [],
+    meta: (() => { try { return JSON.parse(localStorage.getItem('fadarr-local-meta') || '{}') || {}; } catch (e) { return {}; } })(),
+    isLocal(p) { return String(p || '').startsWith('local:'); },
+    patch(path, patch) {
+      this.meta[path] = { ...(this.meta[path] || {}), ...patch };
+      try { localStorage.setItem('fadarr-local-meta', JSON.stringify(this.meta)); } catch (e) { toast(t('Stockage du navigateur plein : réglage non gardé.'), 'error'); }
+      const tr = this.tracks.find((x) => x.path === path);
+      if (tr) Object.assign(tr, patch, patch.cues ? { cueCount: patch.cues.length } : {});
+    },
+    /** « 01. Artiste - Titre (Mix).aiff » -> { artist, title } */
+    parseName(rel) {
+      const base = rel.split('/').pop().replace(/\.[^.]+$/, '').replace(/^\s*\d{1,3}\s*[-._)]\s*/, '');
+      const i = base.indexOf(' - ');
+      return i > 0 ? { artist: base.slice(0, i).trim(), title: base.slice(i + 3).trim() } : { artist: '', title: base.trim() };
+    },
+    load(fileList) {
+      const list = [...fileList].filter((f) => LOCAL_AUDIO.test(f.name) && !f.name.startsWith('._'));
+      if (!list.length) { toast(t('Aucun fichier audio dans ce dossier.'), 'error'); return; }
+      this.files = new Map(); this.tracks = [];
+      for (const f of list) {
+        const rel = f.webkitRelativePath || f.name;
+        const parts = rel.split('/'); this.name = parts.length > 1 ? parts[0] : t('Dossier local');
+        const path = `local:${rel}`;
+        const m = this.meta[path] || {};
+        const ext = (f.name.match(/\.([^.]+)$/) || [, ''])[1].toUpperCase();
+        this.files.set(path, f);
+        this.tracks.push({
+          path, local: true, folder: parts.slice(1, -1).join('/'), ...this.parseName(rel), album: '', format: ext === 'AIF' ? 'AIFF' : ext, bitrate: null,
+          duration: m.duration || null, bpm: m.bpm || null, key: m.key || '', gridStart: m.gridStart ?? null, rating: m.rating || 0, color: m.color || '',
+          cueCount: (m.cues || []).length, added: f.lastModified || null
+        });
+      }
+      this.tracks.sort((a, b) => `${a.artist} ${a.title}`.localeCompare(`${b.artist} ${b.title}`, undefined, { sensitivity: 'base' }));
+      this.renderTree();
+      library.show({ type: 'local', path: '' });
+      toast(t('{n} morceaux chargés depuis « {name} » (lus sur cet ordinateur, rien n’est envoyé au serveur).', { n: this.tracks.length, name: this.name }));
+    },
+    close() {
+      this.files = new Map(); this.tracks = []; this.name = '';
+      this.renderTree();
+      if (library.view && library.view.type === 'local') library.show({ type: 'all' });
+    },
+    renderTree() {
+      const box = $('#local-tree'); if (!box) return;
+      if (!this.tracks.length) { box.innerHTML = `<div class="node fold muted">${esc(t('Aucun dossier : ＋ pour en ouvrir un sur cet ordinateur'))}</div>`; return; }
+      const root = { key: 'localv:', label: this.name, count: this.tracks.length, children: [], select: () => library.show({ type: 'local', path: '' }),
+        menu: [{ label: t('Fermer ce dossier'), fn: () => this.close() }, { label: t('Ouvrir un autre dossier…'), fn: () => this.pick() }] };
+      const byPath = new Map(); const counts = new Map();
+      for (const tr of this.tracks) { const parts = tr.folder ? tr.folder.split('/') : []; for (let i = 1; i <= parts.length; i++) { const p = parts.slice(0, i).join('/'); counts.set(p, (counts.get(p) || 0) + 1); } }
+      for (const p of [...counts.keys()].sort()) {
+        const node = { key: `localv:${p}`, label: p.split('/').pop(), count: counts.get(p), children: [], select: () => library.show({ type: 'local', path: p }) };
+        byPath.set(p, node);
+        (byPath.get(p.split('/').slice(0, -1).join('/')) || root).children.push(node);
+      }
+      library.renderTree(box, [root]);
+      library.markSel();
+    },
+    pick() { const inp = $('#local-input'); inp.value = ''; inp.click(); },
+    rows(folder, q) {
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      return this.tracks.filter((tr) => (!folder || tr.folder === folder || tr.folder.startsWith(`${folder}/`))
+        && (!words.length || words.every((w) => `${tr.artist} ${tr.title} ${tr.folder}`.toLowerCase().includes(w))));
+    },
+    full(path) { const tr = this.tracks.find((x) => x.path === path) || {}; const m = this.meta[path] || {}; return { ...tr, ...m, cues: m.cues || [], gridStart: m.gridStart ?? null }; },
+    file(path) { const f = this.files.get(path); if (!f) throw new Error(t('Fichier local introuvable : rouvre le dossier.')); return f; },
+    async arrayBuffer(path) { const ab = await this.file(path).arrayBuffer(); return /\.aiff?$/i.test(path) ? aiffToWav(ab) : ab; },
+    async url(path) { const f = this.file(path); return URL.createObjectURL(/\.aiff?$/i.test(path) ? new Blob([aiffToWav(await f.arrayBuffer())], { type: 'audio/wav' }) : f); }
   };
 
   // ===========================================================================
@@ -1691,15 +1821,19 @@
       this.stop();
       if (!this.el) { this.el = new Audio(); this.el.preload = 'auto'; this.el.addEventListener('ended', () => this.stop()); }
       this.path = t.path;
-      this.el.src = `/api/audio?path=${encodeURIComponent(t.path)}`;
+      if (this._url) { URL.revokeObjectURL(this._url); this._url = null; }
+      if (local.isLocal(t.path)) {
+        local.url(t.path).then((u) => { if (this.path !== t.path) { URL.revokeObjectURL(u); return; } this._url = u; this.el.src = u; this.el.play().catch(() => { /* rien */ }); }).catch((e) => { toast(e.message, 'error'); this.stop(); });
+      } else this.el.src = `/api/audio?path=${encodeURIComponent(t.path)}`;
       this.el.volume = 0.85;
-      const seekable = !/\.aiff?$/i.test(t.path); // l'AIFF est converti à la volée : pas de saut possible
+      const seekable = local.isLocal(t.path) || !/\.aiff?$/i.test(t.path); // l'AIFF du NAS est converti à la volée : pas de saut possible
       this.el.onloadedmetadata = () => { if (seekable && Number.isFinite(this.el.duration)) this.el.currentTime = this.el.duration * 0.33; };
-      this.el.play().catch((e) => { toast(window.I18N.t('Pré-écoute impossible : {msg}', { msg: e.message }), 'error'); this.stop(); });
+      if (!local.isLocal(t.path)) this.el.play().catch((e) => { toast(window.I18N.t('Pré-écoute impossible : {msg}', { msg: e.message }), 'error'); this.stop(); });
       library.renderRows();
     },
     stop() {
       if (this.el) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
+      if (this._url) { URL.revokeObjectURL(this._url); this._url = null; }
       const had = this.path; this.path = null;
       if (had) library.renderRows();
     }
@@ -1894,6 +2028,9 @@
     let sideHidden = false; try { sideHidden = localStorage.getItem('fadarr-side') === '1'; } catch (e) { /* rien */ }
     setSide(sideHidden);
     sideBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-side'); setSide(h); try { localStorage.setItem('fadarr-side', h ? '1' : '0'); } catch (e) { /* rien */ } });
+    $('#open-local').addEventListener('click', () => local.pick());
+    $('#local-input').addEventListener('change', (e) => { if (e.target.files && e.target.files.length) local.load(e.target.files); });
+    local.renderTree();
     $('#new-pl').addEventListener('click', async () => {
       const name = prompt(window.I18N.t('Nom de la nouvelle playlist :')); if (!name) return;
       try { const p = await api('POST', '/api/playlists', { name }); await library.loadPlaylists(); $('#target-pl').value = p.id; library.show({ type: 'playlist', id: p.id }); } catch (e) { toast(e.message, 'error'); }

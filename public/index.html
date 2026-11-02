@@ -69,6 +69,9 @@
     <div class="side-search"><input type="search" id="search" placeholder="Rechercher (artiste, titre, album, dossier…)" autocomplete="off"></div>
     <div class="side-head" data-sec="tree"><span class="sec"><span class="caret open">▸</span>Collection</span><button type="button" class="mini fold-all" data-target="tree" title="Tout replier">⊟</button></div>
     <div id="tree" class="tree"></div>
+    <div class="side-head" data-sec="local-tree"><span class="sec"><span class="caret open">▸</span>Dossier local</span><button type="button" id="open-local" class="mini" title="Ouvrir un dossier de cet ordinateur (les morceaux sont lus dans le navigateur, rien n'est envoyé au serveur)">＋</button></div>
+    <div id="local-tree" class="tree"></div>
+    <input type="file" id="local-input" webkitdirectory multiple hidden>
     <div class="side-head" data-sec="pl-mine"><span class="sec"><span class="caret open">▸</span>Mes playlists</span><button type="button" id="new-pl" class="mini" title="Nouvelle playlist">＋</button></div>
     <div id="pl-mine" class="tree"></div>
     <div class="side-head" data-sec="pl-traktor"><span class="sec"><span class="caret open">▸</span>Traktor</span><button type="button" class="mini fold-all" data-target="pl-traktor" title="Tout replier">⊟</button></div>

@@ -15,13 +15,17 @@ fadarr est une petite appli web auto-hébergée (Node.js, sans framework ni comp
 
 ## Fonctions
 
-- **Deux decks** : formes d'onde colorées par fréquences (vue d'ensemble et zoom avec grille de tempo), lecture / CUE, tempo ±8 / ±16 / ±50 %,
-  un gros BPM sur lequel on clique pour le régler, un bouton **SYNC** qui s'allume quand les tempos sont calés,
-  indicateur de phase, 8 hot cues (et hot loops), loops (IN/OUT, 4 ou 8 temps), memory cues et memory loops, quantize.
-- **Disposition inspirée de Traktor**, à ta main : replie les decks ou le panneau de gauche pour te concentrer sur la recherche ou sur le mix.
-- **Mixeur** : gain, EQ 3 bandes, filtre, faders de voie, crossfader, master ; trois skins (*Base*, *Analog*, *Rotary*).
+- **Deux decks façon Traktor** : en-tête sur trois lignes (titre / artiste / album), temps restant et durée, BPM, % de tempo et BPM d'origine ;
+  formes d'onde RGB en couleurs (vue d'ensemble et zoom avec grille, tête de lecture rouge), fader de tempo à côté de l'onde, SYNC et indicateur de phase,
+  loops de 1/2 à 16 temps, IN/OUT, 8 hot cues numérotés (hot loops aussi), memory cues et loops, quantize.
+- **Interface familière** : thème sombre inspiré de Traktor (aucun logo ni élément graphique de Native Instruments) : arbre avec recherche en haut,
+  grille de **favoris** 2 × 6, lignes colorées par morceau, sélection bleue, barre d'état. Replie les decks ou le panneau quand il te faut de la place.
+- **Mixeur** : tempo maître, gain, EQ 3 bandes, filtre, faders de voie, crossfader, master ; trois skins (*Traktor*, *Analog*, *Rotary*).
+- **Dossier local** : ouvre un dossier de l'ordinateur sur lequel tu es (en plus du NAS) : les morceaux sont lus dans le navigateur, rien n'est envoyé ;
+  WAV, AIFF, MP3, FLAC, M4A. BPM, grille, cues, note et couleur de ces morceaux sont gardés dans ce navigateur.
 - **Bibliothèque** : analyse du dossier musique (seuls les fichiers nouveaux ou modifiés sont relus), arborescence repliable,
-  tri sur toutes les colonnes, filtre de BPM, tonalité en notation musicale / Camelot / Open Key.
+  tri par colonne, filtres BPM et date d'ajout, tonalité musicale / Camelot / Open Key (en couleur), notes en étoiles au clic,
+  clic droit pour les couleurs Traktor, figer un tri comme ordre de playlist.
 - **Pensé pour préparer un set** : dès qu'un morceau est chargé, la liste met en lumière ce qui s'enchaîne avec lui
   (tonalité compatible sur la roue Camelot, BPM à ±3 % ou demi / double tempo) ; pré-écoute en un clic sans charger de deck.
 - **Import Traktor ou Rekordbox** : lit un `collection.nml` Traktor ou un `rekordbox.xml` Rekordbox — playlists et dossiers,

@@ -3,6 +3,20 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.9.0] — 2026-11-03
+### Ajouté
+- **Dossier local** (en plus du NAS) : section « Dossier local » dans l'arbre, bouton ＋ pour ouvrir un dossier de l'ordinateur sur lequel tu es. Les morceaux sont lus directement dans le navigateur (rien n'est envoyé au serveur), avec sous-dossiers, recherche, decks, pré-écoute, détection de BPM / grille, cues, note et couleur — gardés dans ce navigateur. AIFF lu aussi dans Chrome (converti à la volée en WAV, sans perte). Les morceaux locaux ne vont pas dans les playlists (elles pointent vers le NAS).
+### Corrigé
+- Fader de tempo : la valeur ne passe plus à la ligne (decks de même hauteur). Compteur de cues mis à jour dans la bonne colonne. « 1er temps » traduit en anglais.
+### Documentation
+- README / LISEZMOI à jour (interface façon Traktor, favoris, dossier local) et nouvelle capture d'écran.
+- *EN: local folder support (open a folder from this computer; tracks are read in the browser, nothing uploaded; AIFF decoded in Chrome too; cues/BPM/rating/colour kept in the browser); tempo-fader overflow fix; updated README and screenshot.*
+
+## [0.8.1] — 2026-10-25
+### Corrigé
+- **Vue d'ensemble de la forme d'onde en couleurs** (elle tirait sur le violet) : la couleur suit maintenant l'énergie moyenne de chaque bande par passage, comparée au reste du morceau. Les passages riches en graves virent à l'orange / rouge, les breaks au vert / jaune, les passages brillants au bleu / blanc ; les couleurs sont lissées par plages, comme la vue d'ensemble de Traktor.
+- *EN: colored waveform overview (no more purple): color follows each band's average energy per section relative to the track, smoothed into Traktor-like color zones.*
+
 ## [0.8.0] — 2026-10-25
 Interface façon Traktor Pro (disposition et codes visuels seulement : aucun logo ni élément graphique de Native Instruments ; fadarr reste MIT).
 ### Modifié
@@ -96,6 +110,9 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.9.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.0
+[0.8.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.8.1
+[0.8.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.8.0
 [0.5.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.5.0
 [0.4.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.4.0
 [0.3.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.3.0

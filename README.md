@@ -15,13 +15,17 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
 
 ## Features
 
-- **Two decks** — frequency-coloured waveforms (overview + zoom with beat grid), play / CUE, tempo ±8 / ±16 / ±50 %,
-  a large BPM read-out you can click to set, a **SYNC** button that lights up when the tempos match,
-  beat-phase meter, 8 hot cues (hot loops too), loops (IN/OUT, 4 or 8 beats), memory cues and memory loops, quantize.
-- **Traktor-inspired layout**, your way — collapse the decks or the side panel to focus on browsing or on mixing.
-- **Mixer** — gain, 3-band EQ, filter, channel faders, crossfader, master; three skins (*Base*, *Analog*, *Rotary*).
+- **Two decks, Traktor-style** — three-line header (title / artist / album), remaining and total time, BPM, tempo % and original BPM;
+  full-colour RGB waveforms (overview + zoom with beat grid, red playhead), tempo fader next to the waveform, SYNC and beat-phase meter,
+  loop sizes 1/2 to 16 beats, IN/OUT, 8 numbered hot cues (hot loops too), memory cues and loops, quantize.
+- **Familiar layout** — dark Traktor-like interface (no Native Instruments logos or artwork): collection tree with search on top,
+  a 2×6 **favourites** grid, full-row track colours, blue selection, status bar. Collapse the decks or the side panel when you need room.
+- **Mixer** — master tempo, gain, 3-band EQ, filter, channel faders, crossfader, master; three skins (*Traktor*, *Analog*, *Rotary*).
+- **Local folder** — open a folder from the computer you're on (alongside the NAS): tracks are read in the browser, nothing is uploaded;
+  WAV, AIFF, MP3, FLAC, M4A. BPM, grid, cues, rating and colour for those tracks are kept in that browser.
 - **Library** — scans your music folder (only new or changed files are re-read), collapsible folder tree,
-  sort by any column, BPM range filter, key shown as musical / Camelot / Open Key.
+  sort by any column, BPM range and date-added filters, key shown as musical / Camelot / Open Key (colour-coded), click-to-rate stars,
+  right-click for Traktor colours, freeze a sorted order into a playlist.
 - **Built for set preparation** — once a track is loaded, the list highlights what mixes with it
   (Camelot-compatible key, BPM within 3 % or half/double tempo); one-click preview without loading a deck.
 - **Import from Traktor or Rekordbox** — read a Traktor `collection.nml` or a Rekordbox `rekordbox.xml`: playlists and folders,
