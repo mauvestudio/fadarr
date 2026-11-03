@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 # ffmpeg : lecture des AIFF dans Chrome (conversion à la volée en WAV, sans perte)
 RUN apk add --no-cache ffmpeg tini
 WORKDIR /app

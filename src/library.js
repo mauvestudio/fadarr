@@ -91,8 +91,12 @@ async function* walk(dir) {
 /** Format affiché d'après l'extension (« MP3 », « WAV », « AIFF »…), plus parlant que le nom du conteneur (« MPEG », « WAVE »). */
 const extFormat = (file) => { const e = path.extname(file).slice(1).toUpperCase(); return e === 'AIF' ? 'AIFF' : e; };
 
+// music-metadata n'existe plus qu'en module ES (versions corrigées des failles de lecture de fichiers piégés) : chargé une fois par import()
+let mmPromise = null;
+const loadMusicMetadata = () => (mmPromise ||= import('music-metadata'));
+
 async function readTags(file) {
-  const mm = require('music-metadata');
+  const mm = await loadMusicMetadata();
   const meta = await mm.parseFile(file, { duration: true, skipCovers: true });
   const c = meta.common || {};
   const f = meta.format || {};
@@ -176,7 +180,7 @@ async function rescan() {
 
 /** Nom affiché quand les tags sont vides : « Artiste - Titre » du nom de fichier. */
 function fallbackNames(rel) {
-  const base = path.basename(rel).replace(/\.[^.]+$/, '');
+  const base = path.basename(rel).replace(/\.[^.]+$/, '').replace(/^\s*\d{1,3}\s*[-._)]\s*/, ''); // sans numéro de piste « 01. »
   const m = base.match(/^(.+?)\s+-\s+(.+)$/);
   return m ? { artist: m[1], title: m[2] } : { artist: '', title: base };
 }

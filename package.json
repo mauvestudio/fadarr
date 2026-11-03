@@ -1,6 +1,6 @@
 {
   "name": "fadarr",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Prepare DJ sets in your browser: two decks streaming from your NAS, playlists, hot cues and loops, Traktor import, Rekordbox export.",
   "main": "src/server.js",
   "scripts": {
@@ -11,7 +11,7 @@
   "dependencies": {
     "express": "^4.22.3",
     "fast-xml-parser": "^5.11.2",
-    "music-metadata": "7.14.0"
+    "music-metadata": "^12.3.4"
   },
   "keywords": [
     "dj",
@@ -24,7 +24,7 @@
     "unraid"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
