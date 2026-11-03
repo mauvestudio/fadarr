@@ -1478,6 +1478,8 @@
 
     async show(view) {
       this.view = view;
+      const srcLbl = $('#source-label');
+      if (srcLbl) srcLbl.textContent = view.type === 'local' ? (view.dev || String(view.path || '').split('/')[0]) : 'NAS';
       this.markSel();
       const q = $('#search').value.trim();
       const actions = $('#list-actions');
@@ -2473,9 +2475,18 @@
       const r = ev.currentTarget.getBoundingClientRect();
       contextMenu({ clientX: r.left, clientY: r.bottom + 4, preventDefault() {}, stopPropagation() {} }, [
         { label: t('Collection Traktor (collection.nml)…'), fn: () => $('#nml-input').click() },
-        { label: t('Collection Rekordbox (rekordbox.xml)…'), fn: () => $('#rbxml-input').click() },
-        { label: t('Clé USB pour CDJ : playlists et cues vers le NAS…'), fn: () => importUsbKey().catch((e) => toast(e.message, 'error')) }
+        { label: t('Collection Rekordbox (rekordbox.xml)…'), fn: () => $('#rbxml-input').click() }
       ]);
+    });
+    // Source : NAS (par défaut), clé USB ou disque dur branchés sur cet ordinateur, joués en direct (rien n'est copié)
+    $('#source-btn').addEventListener('click', (ev) => {
+      const r = ev.currentTarget.getBoundingClientRect();
+      const cur = library.view && library.view.type === 'local' ? (library.view.dev || String(library.view.path || '').split('/')[0]) : 'NAS';
+      const items = [{ label: `${cur === 'NAS' ? '✓ ' : ''}NAS`, fn: () => library.show({ type: 'all' }) }];
+      for (const d of local.devices) items.push({ label: `${cur === d.name ? '✓ ' : ''}${d.kind === 'usb' ? t('Clé') : t('Disque')} · ${d.name}`, fn: () => library.show(d.kind === 'usb' && d.playlists.length ? { type: 'local', dev: d.name, pl: d.playlists[0].id } : { type: 'local', path: d.name }) });
+      items.push({ sep: true }, { label: t('Clé USB…'), fn: () => local.pick() }, { label: t('Disque dur…'), fn: () => local.pick() });
+      if (local.devices.length) { items.push({ sep: true }); for (const d of local.devices) items.push({ label: t('Éjecter « {name} »', { name: d.name }), fn: () => local.eject(d.name) }); }
+      contextMenu({ clientX: r.left, clientY: r.bottom + 4, preventDefault() {}, stopPropagation() {} }, items);
     });
     // style de forme d'onde (RGB façon Mixxx / 3 bandes)
     const wsel = $('#wave'); wsel.value = waveStyle;

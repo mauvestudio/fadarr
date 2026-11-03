@@ -13,8 +13,9 @@ versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; Englis
   Les changements faits dans fadarr (cues, grille, note) sont gardés dans le navigateur. Fonctionne en http comme en https.
 ### Modifié
 - Section « Collection » renommée **NAS** (source par défaut), « Dossier local » devient **Clés et disques**.
-- Les trois imports (Traktor, Rekordbox, clé USB vers le NAS) sont réunis dans un bouton **Importer ▾** : la barre du haut tient sur une ligne.
-- *EN: play USB sticks and drives directly (Rekordbox-style devices panel, several at once, CDJ sticks with their playlists, cues and grids); single "Import ▾" menu.*
+- Bouton **Source ▾** en haut : NAS (par défaut), Clé USB…, Disque dur…, les appareils branchés (✓ celui affiché) et ⏏ pour les éjecter ; rien n'est copié.
+- **Importer ▾** réunit les imports Traktor et Rekordbox (l'import d'une clé vers le NAS n'est plus proposé : une clé se joue en direct).
+- *EN: play USB sticks and drives directly (Rekordbox-style devices panel, several at once, CDJ sticks with their playlists, cues and grids); "Source ▾" menu (NAS, stick, drive), "Import ▾" menu for Traktor / Rekordbox.*
 
 ## [0.12.1] — 2026-11-03
 ### Ajouté
