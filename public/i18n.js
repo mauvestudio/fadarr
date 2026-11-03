@@ -15,6 +15,23 @@
 
   const DICT = {
     en: {
+      // ---------- clés et disques / sticks and drives ----------
+      'Importer ▾': 'Import ▾',
+      "Importer une collection Traktor, Rekordbox, ou les playlists et cues d'une clé USB pour CDJ": 'Import a Traktor or Rekordbox collection, or the playlists and cues of a CDJ USB stick',
+      'Collection Traktor (collection.nml)…': 'Traktor collection (collection.nml)…',
+      'Collection Rekordbox (rekordbox.xml)…': 'Rekordbox collection (rekordbox.xml)…',
+      'Clé USB pour CDJ : playlists et cues vers le NAS…': 'CDJ USB stick: playlists and cues onto the NAS…',
+      'NAS': 'NAS', 'Clés et disques': 'Sticks & drives', 'Playlists': 'Playlists', 'Tous les morceaux': 'All tracks', 'Éjecter': 'Eject',
+      "Brancher une clé USB (préparée pour CDJ ou non) ou un disque de cet ordinateur : les morceaux sont lus dans le navigateur, rien n'est envoyé au serveur": 'Mount a USB stick (CDJ-ready or not) or a drive from this computer: tracks are read in the browser, nothing is sent to the server',
+      '＋ Brancher une clé / un disque': '＋ Mount a stick / a drive',
+      'Brancher une autre clé / un autre disque…': 'Mount another stick / drive…',
+      'Éjecter « {name} »': 'Eject “{name}”',
+      '« {name} » éjecté de fadarr (tu peux débrancher).': '“{name}” ejected from fadarr (you can unplug it).',
+      'Clé « {name} » : {n} morceaux, {p} playlists (lus sur cet ordinateur, la clé n’est pas modifiée).': 'Stick “{name}”: {n} tracks, {p} playlists (read on this computer, the stick is not modified).',
+      'Aucun fichier audio dans « {name} ».': 'No audio file in “{name}”.',
+      '{name} : {msg}': '{name}: {msg}',
+      'absent de la clé': 'missing from stick',
+      'Fichier introuvable : rebranche la clé ou le disque.': 'File not found: mount the stick or drive again.',
       // ---------- cache ----------
       'Cache': 'Cache', 'Vider': 'Clear',
       'Formes d’onde calculées pour la clé USB et fichiers préparés : tout se recrée au besoin (le prochain export de clé sera juste plus long).': 'Waveforms computed for the USB stick and prepared files: everything is rebuilt when needed (the next stick export just takes longer).',

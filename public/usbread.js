@@ -242,5 +242,19 @@
     return { bpm, gridStart: start, variable: counts.size > 1 };
   }
 
-  return { readPdb, anlzSections, readGrid, readCues, gridSummary, _dstr: dstr };
+  /**
+   * Décalage (ms) entre la platine et un décodage ffmpeg / Chrome d'un MP3, d'après sa 1re trame (octets lus juste après l'ID3v2) :
+   * LAME avec en-tête Xing/Info 50 ms, autre encodeur avec en-tête 25 ms, sans en-tête 0 (mesuré sur une vraie clé, voir src/mp3offset.js).
+   */
+  function mp3OffsetMs(b) {
+    let i = 0;
+    while (i + 4 < b.length && !(b[i] === 0xff && (b[i + 1] & 0xe0) === 0xe0)) i++;
+    const frame = latin1(b, i, i + 600);
+    const tag = (frame.match(/Xing|Info|VBRI/) || [null])[0];
+    if (tag === 'VBRI') return 25;
+    if (!tag) return 0;
+    return /LAME/.test(frame) ? 50 : 25;
+  }
+
+  return { readPdb, anlzSections, readGrid, readCues, gridSummary, mp3OffsetMs, _dstr: dstr };
 }));

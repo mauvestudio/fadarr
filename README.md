@@ -21,7 +21,7 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
 - **Familiar layout** — dark Traktor-like interface (no Native Instruments logos or artwork): collection tree with search on top,
   a 2×6 **favourites** grid, full-row track colours, blue selection, status bar. Collapse the decks or the side panel when you need room.
 - **Mixer** — master tempo, gain, 3-band EQ, filter, channel faders, crossfader, master; three skins (*Traktor*, *Analog*, *Rotary*).
-- **Local folder** — open a folder from the computer you're on (alongside the NAS): tracks are read in the browser, nothing is uploaded;
+- **Sticks & drives, played directly** — mount one or more USB sticks or drives (Rekordbox-style devices panel). A CDJ stick shows its playlists and plays its tracks with their cues, loops and grid, straight from the stick (nothing is written to it). Any other folder (SSD, hard drive) works too: tracks are read in the browser, nothing is uploaded;
   WAV, AIFF, MP3, FLAC, M4A. BPM, grid, cues, rating and colour for those tracks are kept in that browser.
 - **Library** — scans your music folder (only new or changed files are re-read), collapsible folder tree,
   sort by any column, BPM range and date-added filters, key shown as musical / Camelot / Open Key (colour-coded), click-to-rate stars,

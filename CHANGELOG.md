@@ -3,6 +3,19 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.13.0] — 2026-11-03
+### Ajouté
+- **Clés et disques, joués en direct** (panneau de gauche, comme les appareils de Rekordbox) : ＋ Brancher une clé / un disque.
+  Plusieurs appareils à la fois (ta clé et celle d'un ami pour une jam, un SSD…), chacun avec ⏏ pour l'éjecter.
+  - **Clé préparée pour CDJ** (Rekordbox ou fadarr) : ses playlists et dossiers, et tous ses morceaux, joués depuis la clé avec
+    leurs hot cues, memory cues, loops, grille, tonalité, couleur et note ; MP3 recalés selon leur encodeur ; rien n'est écrit sur la clé.
+  - **Autre dossier** (disque dur, SSD) : ses sous-dossiers, comme l'ancien « Dossier local ».
+  Les changements faits dans fadarr (cues, grille, note) sont gardés dans le navigateur. Fonctionne en http comme en https.
+### Modifié
+- Section « Collection » renommée **NAS** (source par défaut), « Dossier local » devient **Clés et disques**.
+- Les trois imports (Traktor, Rekordbox, clé USB vers le NAS) sont réunis dans un bouton **Importer ▾** : la barre du haut tient sur une ligne.
+- *EN: play USB sticks and drives directly (Rekordbox-style devices panel, several at once, CDJ sticks with their playlists, cues and grids); single "Import ▾" menu.*
+
 ## [0.12.1] — 2026-11-03
 ### Ajouté
 - **Grille de mesure façon Rekordbox** sur la forme d'onde : graduations en haut et en bas à chaque temps, longues et rouges sur
@@ -183,6 +196,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.13.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.13.0
 [0.12.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.1
 [0.12.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.0
 [0.11.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.11.0

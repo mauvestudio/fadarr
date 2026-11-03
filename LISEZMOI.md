@@ -33,6 +33,7 @@ fadarr est une petite appli web auto-hébergée (Node.js, sans framework ni comp
   tolérés), puis par artiste + titre ; les introuvables sont listés. Un nouvel import n'écrase jamais les cues modifiés dans fadarr.
 - **Fluide avec les grosses bibliothèques** : la liste est virtualisée (seules les lignes visibles sont dessinées), des milliers de morceaux défilent sans ralentir.
 - **Export Rekordbox** : `rekordbox.xml` avec playlists, cues (et leurs couleurs), loops, BPM et grille ; Rekordbox fait ensuite la clé.
+- **Clés et disques, joués en direct** : branche une ou plusieurs clés USB ou disques (panneau façon Rekordbox). Une clé pour CDJ montre ses playlists et joue ses morceaux avec leurs cues, loops et grille, directement depuis la clé (rien n'y est écrit). Un autre dossier (SSD, disque dur) marche aussi.
 - **Importer une clé USB pour CDJ** : fadarr lit une clé préparée par Rekordbox (ou par lui-même) depuis le navigateur :
   playlists et dossiers, hot cues, memory cues et loops (couleurs, noms), grille, tonalité, couleur et note. Les MP3 sont recalés
   fichier par fichier selon leur encodeur (LAME 50 ms, ffmpeg 25 ms, mesuré sur une vraie clé), à l'import comme à l'export.

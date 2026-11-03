@@ -243,7 +243,7 @@
       try {
         let full, data;
         if (local.isLocal(track.path)) { // dossier de cet ordinateur : lu directement dans le navigateur
-          full = local.full(track.path);
+          full = await local.full(track.path);
           data = await local.arrayBuffer(track.path);
         } else {
           const [fullR, res] = await Promise.all([
@@ -1220,7 +1220,8 @@
           row.dataset.key = n.key;
           row.style.paddingLeft = `${8 + depth * 13}px`;
           const isOpen = this.open.has(n.key);
-          row.innerHTML = `<span class="caret${hasKids ? '' : ' none'}${isOpen ? ' open' : ''}">▸</span><span class="lbl">${esc(n.label)}</span>${n.count ? `<span class="cnt">${n.count}</span>` : ''}`;
+          row.innerHTML = `<span class="caret${hasKids ? '' : ' none'}${isOpen ? ' open' : ''}">▸</span><span class="lbl">${esc(n.label)}</span>${n.count ? `<span class="cnt">${n.count}</span>` : ''}${n.action ? `<button type="button" class="mini nact" title="${esc(n.action.title || '')}">${esc(n.action.label)}</button>` : ''}`;
+          if (n.action) $('.nact', row).addEventListener('click', (ev) => { ev.stopPropagation(); n.action.fn(); });
           const kids = document.createElement('div');
           kids.className = 'kids';
           kids.hidden = !isOpen;
@@ -1461,7 +1462,7 @@
     },
 
     markSel() {
-      const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : this.view.type === 'local' ? `localv:${this.view.path}` : `pl:${this.view.id}`;
+      const key = this.view.type === 'all' ? 'all' : this.view.type === 'recent' ? 'recent' : this.view.type === 'folder' ? `folder:${this.view.path}` : this.view.type === 'local' ? (this.view.pl ? `localpl:${this.view.dev}:${this.view.pl}` : (local.device(this.view.path) && local.device(this.view.path).kind === 'usb' ? `localv:${this.view.path}/*` : `localv:${this.view.path}`)) : `pl:${this.view.id}`;
       $$('.node[data-key]').forEach((n) => n.classList.toggle('sel', n.dataset.key === key));
       this._curKey = key; this.renderFavs();
       this.revealSel(key);
@@ -1512,9 +1513,10 @@
           }));
         }
       } else if (view.type === 'local') {
-        $('#list-title').textContent = view.path ? `${local.name} / ${view.path}` : t('{name} (sur cet ordinateur)', { name: local.name || t('Dossier local') });
-        this.rows = local.rows(view.path, q);
-        if (local.tracks.length) actions.appendChild(button(t('Fermer ce dossier'), () => local.close()));
+        $('#list-title').textContent = local.title(view);
+        this.rows = local.rows(view, q);
+        const devName = view.dev || String(view.path || '').split('/')[0];
+        if (local.device(devName)) actions.appendChild(button(t('Éjecter'), () => local.eject(devName)));
       } else {
         $('#list-title').textContent = view.type === 'folder' ? view.path : view.type === 'recent' ? t('Ajouts récents (30 jours)') : t('Toute la bibliothèque');
         const params = new URLSearchParams({ q });
@@ -1588,7 +1590,7 @@
         + `<td class="r dim">${t.duration ? fmt(t.duration) : ''}</td>`
         + `<td class="dim">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r dim">${t.cueCount || ''}</td>`
         + `<td class="r dim" title="${t.added ? new Date(t.added).toLocaleString(window.I18N.locale) : ''}">${shortDate(t.added)}</td>`
-        + `<td class="act">${t.missing ? `<span class="muted small">${T('absent du NAS')}</span>` : `<button type="button" class="ld a" data-l="A" title="${T('Charger dans A')}">A</button><button type="button" class="ld b" data-l="B" title="${T('Charger dans B')}">B</button>`}`
+        + `<td class="act">${t.missing ? `<span class="muted small">${T(t.local ? 'absent de la clé' : 'absent du NAS')}</span>` : `<button type="button" class="ld a" data-l="A" title="${T('Charger dans A')}">A</button><button type="button" class="ld b" data-l="B" title="${T('Charger dans B')}">B</button>`}`
         + `${t.local ? '' : this._editable ? `<button type="button" class="mini" data-x="1" title="${T('Retirer de la playlist')}">×</button>` : `<button type="button" class="mini" data-add="1" title="${T('Ajouter à la playlist choisie (« Ajouter à »)')}">＋</button>`}</td>`
         + `<td class="vcls" hidden>${cls}</td>`;
     },
@@ -1830,10 +1832,20 @@
     return out;
   }
 
+  /**
+   * Clés et disques branchés sur cet ordinateur (panneau « Appareils », comme Rekordbox) : chaque dossier ouvert est un appareil.
+   *   - clé préparée pour CDJ (PIONEER/rekordbox/export.pdb) : ses playlists, cues, grilles, couleurs et notes, jouées en direct ;
+   *   - autre dossier (disque dur, SSD…) : ses sous-dossiers et ses fichiers audio.
+   * Tout est lu dans le navigateur, rien n'est envoyé au serveur. Les changements faits dans fadarr (cues, grille, note…)
+   * sont gardés dans ce navigateur et ne modifient jamais la clé.
+   */
+  const KEY_COLORS = { 1: '#ec407a', 2: '#f5425a', 3: '#f58a42', 4: '#f5d142', 5: '#4caf50', 6: '#42a5f5', 7: '#42a5f5', 8: '#7e57c2' };
   const local = {
-    name: '', files: new Map(), tracks: [],
+    devices: [], files: new Map(), tracks: [], keyData: new Map(),
     meta: (() => { try { return JSON.parse(localStorage.getItem('fadarr-local-meta') || '{}') || {}; } catch (e) { return {}; } })(),
+    get name() { return this.devices.length ? this.devices[0].name : ''; },
     isLocal(p) { return String(p || '').startsWith('local:'); },
+    device(name) { return this.devices.find((d) => d.name === name) || null; },
     patch(path, patch) {
       this.meta[path] = { ...(this.meta[path] || {}), ...patch };
       try { localStorage.setItem('fadarr-local-meta', JSON.stringify(this.meta)); } catch (e) { toast(t('Stockage du navigateur plein : réglage non gardé.'), 'error'); }
@@ -1846,56 +1858,191 @@
       const i = base.indexOf(' - ');
       return i > 0 ? { artist: base.slice(0, i).trim(), title: base.slice(i + 3).trim() } : { artist: '', title: base.trim() };
     },
-    load(fileList) {
-      const list = [...fileList].filter((f) => LOCAL_AUDIO.test(f.name) && !f.name.startsWith('._'));
-      if (!list.length) { toast(t('Aucun fichier audio dans ce dossier.'), 'error'); return; }
-      this.files = new Map(); this.tracks = [];
-      for (const f of list) {
+    fmtOf(name) { const ext = (String(name).match(/\.([^.]+)$/) || [, ''])[1].toUpperCase(); return ext === 'AIF' ? 'AIFF' : ext; },
+    /** Ajoute les dossiers choisis (un appareil par dossier racine). Un appareil du même nom est remplacé (clé rebranchée). */
+    async load(fileList) {
+      const groups = new Map();
+      for (const f of fileList) {
         const rel = f.webkitRelativePath || f.name;
-        const parts = rel.split('/'); this.name = parts.length > 1 ? parts[0] : t('Dossier local');
+        const root = rel.includes('/') ? rel.split('/')[0] : t('Dossier local');
+        if (!groups.has(root)) groups.set(root, []);
+        groups.get(root).push({ f, rel: rel.includes('/') ? rel : `${root}/${rel}` });
+      }
+      let added = 0;
+      for (const [root, list] of groups) {
+        this.eject(root, true);
+        const byRel = new Map(list.map((x) => [x.rel, x.f]));
+        const pdbFile = byRel.get(`${root}/PIONEER/rekordbox/export.pdb`) || byRel.get(`${root}/.PIONEER/rekordbox/export.pdb`);
+        const dev = { name: root, kind: pdbFile ? 'usb' : 'folder', byRel, tracks: [], playlists: [] };
+        try {
+          if (pdbFile) await this.loadKey(dev, pdbFile);
+          else this.loadFolder(dev, list);
+        } catch (e) { toast(t('{name} : {msg}', { name: root, msg: e.message }), 'error'); continue; }
+        if (!dev.tracks.length) { toast(t('Aucun fichier audio dans « {name} ».', { name: root }), 'error'); continue; }
+        this.devices.push(dev); added++;
+        toast(dev.kind === 'usb'
+          ? t('Clé « {name} » : {n} morceaux, {p} playlists (lus sur cet ordinateur, la clé n’est pas modifiée).', { name: root, n: dev.tracks.length, p: dev.playlists.length })
+          : t('{n} morceaux chargés depuis « {name} » (lus sur cet ordinateur, rien n’est envoyé au serveur).', { n: dev.tracks.length, name: root }));
+      }
+      if (!added) return;
+      this.rebuild();
+      const last = this.devices[this.devices.length - 1];
+      library.show(last.kind === 'usb' && last.playlists.length ? { type: 'local', dev: last.name, pl: last.playlists[0].id } : { type: 'local', path: last.name });
+    },
+    loadFolder(dev, list) {
+      for (const { f, rel } of list) {
+        if (!LOCAL_AUDIO.test(f.name) || f.name.startsWith('._')) continue;
+        const parts = rel.split('/');
         const path = `local:${rel}`;
         const m = this.meta[path] || {};
-        const ext = (f.name.match(/\.([^.]+)$/) || [, ''])[1].toUpperCase();
         this.files.set(path, f);
-        this.tracks.push({
-          path, local: true, folder: parts.slice(1, -1).join('/'), ...this.parseName(rel), album: '', format: ext === 'AIF' ? 'AIFF' : ext, bitrate: null,
+        dev.tracks.push({
+          path, local: true, dev: dev.name, folder: parts.slice(1, -1).join('/'), ...this.parseName(rel), album: '', format: this.fmtOf(f.name), bitrate: null,
           duration: m.duration || null, bpm: m.bpm || null, key: m.key || '', gridStart: m.gridStart ?? null, rating: m.rating || 0, color: m.color || '',
           cueCount: (m.cues || []).length, added: f.lastModified || null
         });
       }
-      this.tracks.sort((a, b) => `${a.artist} ${a.title}`.localeCompare(`${b.artist} ${b.title}`, undefined, { sensitivity: 'base' }));
-      this.renderTree();
-      library.show({ type: 'local', path: '' });
-      toast(t('{n} morceaux chargés depuis « {name} » (lus sur cet ordinateur, rien n’est envoyé au serveur).', { n: this.tracks.length, name: this.name }));
+      dev.tracks.sort((a, b) => `${a.artist} ${a.title}`.localeCompare(`${b.artist} ${b.title}`, undefined, { sensitivity: 'base' }));
     },
-    close() {
-      this.files = new Map(); this.tracks = []; this.name = '';
-      this.renderTree();
-      if (library.view && library.view.type === 'local') library.show({ type: 'all' });
+    /** Clé pour CDJ : export.pdb donne les morceaux et les playlists ; grille et cues sont lus à la demande (chargement d'un deck). */
+    async loadKey(dev, pdbFile) {
+      const db = window.FadarrUsbRead.readPdb(new Uint8Array(await pdbFile.arrayBuffer()));
+      const byId = new Map();
+      for (const k of db.tracks) {
+        const rel = `${dev.name}${k.filePath}`;
+        const f = dev.byRel.get(rel);
+        const path = `local:${rel}`;
+        const m = this.meta[path] || {};
+        if (f) this.files.set(path, f);
+        this.keyData.set(path, { anlz: k.analyzePath ? `${dev.name}${k.analyzePath}` : '', loaded: false, cues: [], gridStart: null, bpm: k.bpm || null });
+        const tr = {
+          path, local: true, dev: dev.name, folder: '', usb: true, missing: !f,
+          title: k.title || this.parseName(k.fileName || rel).title, artist: k.artist, album: k.album, genre: k.genre,
+          format: this.fmtOf(k.fileName || rel), bitrate: k.bitrate && !/\.(wav|aiff?)$/i.test(rel) ? k.bitrate : null,
+          duration: m.duration || k.duration || null, bpm: m.bpm || k.bpm || null, key: m.key || k.key || '', gridStart: m.gridStart ?? null,
+          rating: m.rating ?? (k.rating ? Math.min(5, k.rating) * 51 : 0), color: m.color ?? (KEY_COLORS[k.colorId] || ''),
+          cueCount: m.cues ? m.cues.length : null, added: k.dateAdded ? Date.parse(k.dateAdded) || null : null
+        };
+        dev.tracks.push(tr); byId.set(k.id, tr);
+      }
+      dev.playlists = db.playlists.map((p) => ({ id: String(p.id), name: p.name, folder: p.folder, paths: p.trackIds.map((id) => byId.get(id)).filter(Boolean).map((x) => x.path) }));
     },
+    eject(name, quiet) {
+      const dev = this.device(name); if (!dev) return;
+      for (const tr of dev.tracks) { this.files.delete(tr.path); this.keyData.delete(tr.path); }
+      this.devices = this.devices.filter((d) => d !== dev);
+      if (quiet) return;
+      this.rebuild();
+      if (library.view && library.view.type === 'local' && (library.view.dev === name || String(library.view.path || '').split('/')[0] === name)) library.show({ type: 'all' });
+      toast(t('« {name} » éjecté de fadarr (tu peux débrancher).', { name }));
+    },
+    close() { for (const d of [...this.devices]) this.eject(d.name, true); this.rebuild(); if (library.view && library.view.type === 'local') library.show({ type: 'all' }); },
+    rebuild() { this.tracks = this.devices.flatMap((d) => d.tracks); this.renderTree(); },
     renderTree() {
       const box = $('#local-tree'); if (!box) return;
-      if (!this.tracks.length) { box.innerHTML = `<div class="node fold muted">${esc(t('Aucun dossier : ＋ pour en ouvrir un sur cet ordinateur'))}</div>`; return; }
-      const root = { key: 'localv:', label: this.name, count: this.tracks.length, children: [], select: () => library.show({ type: 'local', path: '' }),
-        menu: [{ label: t('Fermer ce dossier'), fn: () => this.close() }, { label: t('Ouvrir un autre dossier…'), fn: () => this.pick() }] };
-      const byPath = new Map(); const counts = new Map();
-      for (const tr of this.tracks) { const parts = tr.folder ? tr.folder.split('/') : []; for (let i = 1; i <= parts.length; i++) { const p = parts.slice(0, i).join('/'); counts.set(p, (counts.get(p) || 0) + 1); } }
-      for (const p of [...counts.keys()].sort()) {
-        const node = { key: `localv:${p}`, label: p.split('/').pop(), count: counts.get(p), children: [], select: () => library.show({ type: 'local', path: p }) };
-        byPath.set(p, node);
-        (byPath.get(p.split('/').slice(0, -1).join('/')) || root).children.push(node);
-      }
-      library.renderTree(box, [root]);
+      const add = { key: 'localadd', label: t('＋ Brancher une clé / un disque'), children: [], select: () => this.pick() };
+      if (!this.devices.length) { library.renderTree(box, [add]); return; }
+      const roots = this.devices.map((dev) => {
+        const menu = [{ label: t('Éjecter « {name} »', { name: dev.name }), fn: () => this.eject(dev.name) }, { label: t('Brancher une autre clé / un autre disque…'), fn: () => this.pick() }];
+        const root = { key: `localv:${dev.name}`, label: dev.name, count: dev.tracks.length, children: [], menu,
+          action: { label: '⏏', title: t('Éjecter'), fn: () => this.eject(dev.name) } };
+        if (dev.kind === 'usb') {
+          // playlists de la clé, rangées dans leurs dossiers
+          const plRoot = { key: `localpls:${dev.name}`, label: t('Playlists'), count: dev.playlists.length, children: [] };
+          const folders = new Map();
+          const folderNode = (pathStr) => {
+            if (!pathStr) return plRoot;
+            if (folders.has(pathStr)) return folders.get(pathStr);
+            const parts = pathStr.split(' / '); const parent = folderNode(parts.slice(0, -1).join(' / '));
+            const node = { key: `localplf:${dev.name}:${pathStr}`, label: parts[parts.length - 1], children: [] };
+            parent.children.push(node); folders.set(pathStr, node); return node;
+          };
+          for (const p of dev.playlists) folderNode(p.folder).children.push({ key: `localpl:${dev.name}:${p.id}`, label: p.name, count: p.paths.length, children: [], select: () => library.show({ type: 'local', dev: dev.name, pl: p.id }) });
+          root.children.push(plRoot, { key: `localv:${dev.name}/*`, label: t('Tous les morceaux'), count: dev.tracks.length, children: [], select: () => library.show({ type: 'local', path: dev.name }) });
+          root.select = () => library.show({ type: 'local', path: dev.name });
+        } else {
+          root.select = () => library.show({ type: 'local', path: dev.name });
+          const byPath = new Map(); const counts = new Map();
+          for (const tr of dev.tracks) { const parts = tr.folder ? tr.folder.split('/') : []; for (let i = 1; i <= parts.length; i++) { const p = parts.slice(0, i).join('/'); counts.set(p, (counts.get(p) || 0) + 1); } }
+          for (const p of [...counts.keys()].sort()) {
+            const node = { key: `localv:${dev.name}/${p}`, label: p.split('/').pop(), count: counts.get(p), children: [], select: () => library.show({ type: 'local', path: `${dev.name}/${p}` }) };
+            byPath.set(p, node);
+            (byPath.get(p.split('/').slice(0, -1).join('/')) || root).children.push(node);
+          }
+        }
+        return root;
+      });
+      library.renderTree(box, [...roots, add]);
       library.markSel();
     },
     pick() { const inp = $('#local-input'); inp.value = ''; inp.click(); },
-    rows(folder, q) {
-      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-      return this.tracks.filter((tr) => (!folder || tr.folder === folder || tr.folder.startsWith(`${folder}/`))
-        && (!words.length || words.every((w) => `${tr.artist} ${tr.title} ${tr.folder}`.toLowerCase().includes(w))));
+    /** Lignes d'une vue : { path: 'Appareil[/sous-dossier]' } ou { dev, pl } (playlist d'une clé). */
+    rows(view, q) {
+      const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+      const hit = (tr) => !words.length || words.every((w) => `${tr.artist} ${tr.title} ${tr.album || ''} ${tr.folder}`.toLowerCase().includes(w));
+      if (view.pl) {
+        const dev = this.device(view.dev); const p = dev && dev.playlists.find((x) => x.id === view.pl);
+        if (!p) return [];
+        const byPath = new Map(dev.tracks.map((tr) => [tr.path, tr]));
+        return p.paths.map((x, i) => ({ ...byPath.get(x), index: i })).filter(hit);
+      }
+      const [name, ...sub] = String(view.path || '').split('/'); const folder = sub.join('/');
+      const dev = this.device(name);
+      const list = dev ? dev.tracks : this.tracks;
+      return list.filter((tr) => (!folder || tr.folder === folder || tr.folder.startsWith(`${folder}/`)) && hit(tr));
     },
-    full(path) { const tr = this.tracks.find((x) => x.path === path) || {}; const m = this.meta[path] || {}; return { ...tr, ...m, cues: m.cues || [], gridStart: m.gridStart ?? null }; },
-    file(path) { const f = this.files.get(path); if (!f) throw new Error(t('Fichier local introuvable : rouvre le dossier.')); return f; },
+    title(view) {
+      if (view.pl) { const dev = this.device(view.dev); const p = dev && dev.playlists.find((x) => x.id === view.pl); return `${view.dev} · ${p ? p.name : ''}`; }
+      return String(view.path || '').split('/').join(' / ');
+    },
+    /** Tout ce qu'on sait d'un morceau ; pour une clé, lit sa grille et ses cues (ANLZ) la première fois. */
+    async full(path) {
+      const tr = this.tracks.find((x) => x.path === path) || {}; const m = this.meta[path] || {};
+      const k = this.keyData.get(path);
+      if (k && !k.loaded) await this.loadAnalysis(path, k);
+      const base = k ? { bpm: k.bpm || tr.bpm, gridStart: k.gridStart, cues: k.cues } : { cues: [], gridStart: null };
+      return { ...tr, ...base, ...m, cues: m.cues || base.cues || [], gridStart: m.gridStart ?? base.gridStart ?? null };
+    },
+    async loadAnalysis(path, k) {
+      k.loaded = true;
+      const R = window.FadarrUsbRead;
+      const get = async (rel) => { const f = this.device(rel.split('/')[0])?.byRel.get(rel); return f ? new Uint8Array(await f.arrayBuffer()) : null; };
+      try {
+        if (!k.anlz) return;
+        const dat = await get(k.anlz); if (!dat) return;
+        const ext = await get(k.anlz.replace(/\.DAT$/i, '.EXT'));
+        const shift = await this.mp3Shift(path); // temps CDJ -> temps fadarr
+        const g = R.gridSummary(R.readGrid(dat));
+        if (g) {
+          k.bpm = g.bpm; const beat = 60 / g.bpm; let s = g.gridStart - shift;
+          while (s < -0.0005) s += beat; k.gridStart = Math.max(0, Math.round(s * 1000) / 1000);
+        }
+        const hex = (rgb) => (rgb ? `#${rgb.map((x) => x.toString(16).padStart(2, '0')).join('')}` : '');
+        const at = (ms) => Math.max(0, Math.round((ms / 1000 - shift) * 1000) / 1000);
+        const used = new Set();
+        k.cues = R.readCues(ext || dat).map((c) => {
+          let num = c.slot >= 1 && c.slot <= 8 ? c.slot - 1 : -1;
+          if (num >= 0 && used.has(num)) num = -1; if (num >= 0) used.add(num);
+          const loop = c.loopTimeMs != null && c.loopTimeMs > c.timeMs;
+          return { id: `k${c.slot}-${c.timeMs}`, kind: loop ? 'loop' : (num >= 0 ? 'hot' : 'memory'), num, start: at(c.timeMs), ...(loop ? { end: at(c.loopTimeMs) } : {}), name: c.comment || '', color: num >= 0 ? hex(c.rgb) : '' };
+        });
+        const tr = this.tracks.find((x) => x.path === path);
+        if (tr && tr.cueCount == null) { tr.cueCount = k.cues.length; library.updateCount(path, k.cues.length); }
+      } catch (e) { console.warn('fadarr — analyse de la clé illisible :', path, e); }
+    },
+    /** Décalage MP3 (s) entre la platine et fadarr, d'après l'encodeur (comme src/mp3offset.js côté serveur). */
+    async mp3Shift(path) {
+      if (!/\.mp3$/i.test(path)) return 0;
+      const f = this.files.get(path); if (!f) return 0;
+      try {
+        const h = new Uint8Array(await f.slice(0, 10).arrayBuffer());
+        let pos = 0;
+        if (h[0] === 0x49 && h[1] === 0x44 && h[2] === 0x33) pos = 10 + (((h[6] & 127) << 21) | ((h[7] & 127) << 14) | ((h[8] & 127) << 7) | (h[9] & 127)) + ((h[5] & 0x10) ? 10 : 0);
+        const ms = window.FadarrUsbRead.mp3OffsetMs(new Uint8Array(await f.slice(pos, pos + 16384).arrayBuffer()));
+        return (ms + (Number(srvAn.mp3Extra) || 0)) / 1000;
+      } catch (e) { return 0; }
+    },
+    file(path) { const f = this.files.get(path); if (!f) throw new Error(t('Fichier introuvable : rebranche la clé ou le disque.')); return f; },
     async arrayBuffer(path) { const ab = await this.file(path).arrayBuffer(); return /\.aiff?$/i.test(path) ? aiffToWav(ab) : ab; },
     async url(path) { const f = this.file(path); return URL.createObjectURL(/\.aiff?$/i.test(path) ? new Blob([aiffToWav(await f.arrayBuffer())], { type: 'audio/wav' }) : f); }
   };
@@ -2020,7 +2167,7 @@
       $('#s-save', root).addEventListener('click', async (ev) => {
         ev.preventDefault();
         try { const ns = await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value), cacheMaxMb: Number($('#s-cache-max', root).value), autoGain: $('#s-ag', root).checked, targetLufs: Number($('#s-lufs', root).value) });
-          srvAn.autoGain = ns.autoGain !== false; srvAn.target = Number(ns.targetLufs);
+          srvAn.autoGain = ns.autoGain !== false; srvAn.target = Number(ns.targetLufs); srvAn.mp3Extra = Number(ns.mp3OffsetMs) || 0;
           for (const d of [decks.A, decks.B]) if (d) d.applyAutoGain(); $('#modal').close(); toast(t('Réglages enregistrés.')); if ($('#s-lang', root).value !== window.I18N.lang) window.I18N.setLang($('#s-lang', root).value); } catch (e) { toast(e.message, 'error'); }
       });
     });
@@ -2322,7 +2469,14 @@
     $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
     $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
     $('#rbxml-input').addEventListener('change', (e) => importRekordbox(e.target.files[0]));
-    $('#usb-import').addEventListener('click', () => importUsbKey().catch((e) => toast(e.message, 'error')));
+    $('#import-btn').addEventListener('click', (ev) => {
+      const r = ev.currentTarget.getBoundingClientRect();
+      contextMenu({ clientX: r.left, clientY: r.bottom + 4, preventDefault() {}, stopPropagation() {} }, [
+        { label: t('Collection Traktor (collection.nml)…'), fn: () => $('#nml-input').click() },
+        { label: t('Collection Rekordbox (rekordbox.xml)…'), fn: () => $('#rbxml-input').click() },
+        { label: t('Clé USB pour CDJ : playlists et cues vers le NAS…'), fn: () => importUsbKey().catch((e) => toast(e.message, 'error')) }
+      ]);
+    });
     // style de forme d'onde (RGB façon Mixxx / 3 bandes)
     const wsel = $('#wave'); wsel.value = waveStyle;
     wsel.addEventListener('change', () => { waveStyle = wsel.value; try { localStorage.setItem('fadarr-wave', waveStyle); } catch (e) { /* rien */ } });
@@ -2338,7 +2492,7 @@
     setSide(sideHidden);
     sideBtn.addEventListener('click', () => { const h = !document.body.classList.contains('no-side'); setSide(h); try { localStorage.setItem('fadarr-side', h ? '1' : '0'); } catch (e) { /* rien */ } });
     $('#open-local').addEventListener('click', () => local.pick());
-    $('#local-input').addEventListener('change', (e) => { if (e.target.files && e.target.files.length) local.load(e.target.files); });
+    $('#local-input').addEventListener('change', (e) => { if (e.target.files && e.target.files.length) local.load(e.target.files).catch((err) => toast(err.message, 'error')); });
     local.renderTree();
     $('#new-pl').addEventListener('click', async () => {
       const name = prompt(window.I18N.t('Nom de la nouvelle playlist :')); if (!name) return;
@@ -2415,7 +2569,7 @@
   bindGlobal();
   library.initList();
   Promise.all([api('GET', '/api/analysis').catch(() => null), api('GET', '/api/settings').catch(() => null)]).then(([st, set]) => {
-    if (set) { srvAn.autoGain = set.autoGain !== false; if (Number.isFinite(Number(set.targetLufs))) srvAn.target = Number(set.targetLufs); }
+    if (set) { srvAn.mp3Extra = Number(set.mp3OffsetMs) || 0; srvAn.autoGain = set.autoGain !== false; if (Number.isFinite(Number(set.targetLufs))) srvAn.target = Number(set.targetLufs); }
     if (st && st.available) { srvAn.on = true; if (library.view) library.show(library.view).catch(() => { /* rien */ }); if (st.running) { analysisPoll._last = st.done; analysisPoll(); } }
   });
   refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
