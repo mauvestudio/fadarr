@@ -1,4 +1,4 @@
-![fadarr — the best of Rekordbox and Traktor, in your browser](docs/banner.jpg)
+![fadarr — the best of Rekordbox and Traktor, in your browser](docs/banner.png)
 
 # fadarr
 

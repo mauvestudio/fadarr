@@ -485,6 +485,7 @@ body { font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
 /* barre du haut */
 .top { background: #0e0e0e; border-bottom: 1px solid #000; padding: 5px 12px; gap: 10px; }
 .brand { font: 800 17px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .16em; color: #f2f2f2; }
+.brand img { display: block; height: 22px; width: auto; }
 .nas { border-radius: 2px; background: transparent; border-color: transparent; font-weight: 500; padding: 4px 6px; }
 .clock { color: #e6e6e6; font-variant-numeric: tabular-nums; font-size: 13px; }
 .skin-pick select { border-radius: 2px; }
