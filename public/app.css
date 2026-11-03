@@ -670,3 +670,37 @@ dialog { border-radius: 4px; }
 .node .nact { margin-left: auto; padding: 0 5px; line-height: 16px; opacity: .7; }
 .node .nact:hover { opacity: 1; }
 .node .cnt + .nact { margin-left: 6px; }
+
+/* ---------- skins « matériel » (Pionarr + Deckarr) : public/hwskin.js ---------- */
+body.hw section.decks { display: none; }
+.hw-stage { display: flex; justify-content: center; padding: 8px 8px 6px; background: radial-gradient(ellipse at 50% 0%, #1a1b1f 0%, #070708 70%); border-bottom: 1px solid #000; overflow: hidden; }
+.hw-row { --s: .5; display: flex; align-items: flex-end; gap: calc(12px * var(--s)); }
+.hw-unit { position: relative; filter: drop-shadow(0 10px 18px rgb(0 0 0 / .7)); user-select: none; -webkit-user-select: none; touch-action: none; }
+.hw-deck { height: calc(1260px * var(--s)); }
+.hw-mixer { height: calc(1178px * var(--s)); }
+.hw-unit > svg { display: block; height: 100%; width: auto; }
+.hw-letter { position: absolute; top: calc(8px * var(--s)); left: calc(14px * var(--s)); font: 800 calc(34px * var(--s)) Inter, system-ui, sans-serif; color: #fff; pointer-events: none; }
+.hw-letter.b { left: auto; right: calc(14px * var(--s)); color: #f59e0b; }
+.hw-unit [data-ctl] { transition: filter .08s, opacity .12s; }
+.hw-unit .hw-press { filter: brightness(1.45); }
+.hw-unit .hw-on { filter: brightness(1.55) saturate(1.5) drop-shadow(0 0 3px rgb(255 255 255 / .35)); }
+.hw-unit .hw-off { opacity: .5; }
+.hw-unit .hw-blink { animation: hw-blink 1s steps(1) infinite; }
+@keyframes hw-blink { 50% { opacity: .35; } }
+/* écran des platines : vraies formes d'onde et infos */
+.hw-screen { position: absolute; display: grid; grid-template-rows: 14% 35% 13% 1fr; gap: 1.5%; padding: 1.2%; box-sizing: border-box; background: #050506; container-type: size; font-family: Inter, system-ui, sans-serif; color: #fff; overflow: hidden; }
+.hs-top { display: flex; align-items: center; gap: 1.6cqw; min-width: 0; }
+.hs-src { background: #1d4ed8; color: #fff; font-weight: 700; font-size: 2.4cqw; padding: .6cqw 1cqw; border-radius: .5cqw; }
+.hs-tt { flex: 1; min-width: 0; }
+.hs-title { font-weight: 600; font-size: 3.7cqw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-artist { font-size: 2.7cqw; color: #c9cdd3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-key { font-weight: 700; font-size: 4.2cqw; }
+.hs-zoom, .hs-over { position: relative; background: #000; min-height: 0; }
+.hw-screen canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.hs-info { display: grid; grid-template-columns: 12% 1fr 1fr 22%; gap: 1.5%; }
+.hs-info > div { display: flex; flex-direction: column; justify-content: center; align-items: center; background: #0b0c0f; border: 1px solid #2a2b30; border-radius: .4cqw; min-width: 0; }
+.hs-info small { font-size: 1.7cqw; color: #aab0b8; letter-spacing: .05em; }
+.hs-info b { font-weight: 500; font-size: 4.6cqw; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.hs-bpm { border-color: #f97316 !important; }
+.hs-bpm small, .hs-bpm b { color: #f97316; }
+.hw-unit svg text { pointer-events: none; } /* les inscriptions ne captent jamais le clic : il va au bouton ou au potard dessous */

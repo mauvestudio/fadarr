@@ -181,7 +181,7 @@ const hline = (x0, x1, y, c = '#7a7d81', w = 1.2) => add(`<line x1="${x0}" y1="$
 // Façade
 // ---------------------------------------------------------------------------
 
-add(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="${F}">`);
+add(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${PANEL_TOP} ${W} ${H - PANEL_TOP}" width="${W}" height="${H - PANEL_TOP}" font-family="${F}">`); // sans les connecteurs arrière : la plaque seule
 add(`<defs>
   <filter id="blur2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4"/></filter>
   <filter id="blur3" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.4"/></filter>
@@ -214,14 +214,6 @@ add(`<defs>
   <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d0e12"/><stop offset="1" stop-color="#050506"/></linearGradient>
   <linearGradient id="usbSlot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d3f43"/><stop offset=".55" stop-color="#242528"/><stop offset="1" stop-color="#111214"/></linearGradient>
 </defs>`);
-
-// --- connecteurs à l'arrière (dépassent en haut) ---
-add(`<rect x="66" y="12" width="14" height="70" rx="6" fill="#151617"/><rect x="69" y="5" width="8" height="20" rx="4" fill="#232427"/>`); // antenne
-for (const x of [190, 225, 262, 296, 330, 364, 400, 434, 470, 506, 540, 575, 610, 650]) {
-  add(`<rect x="${x - 7}" y="66" width="14" height="30" rx="2" fill="url(#gold)"/><rect x="${x - 4.5}" y="64" width="9" height="6" rx="2" fill="#2a1f0a"/>`);
-}
-for (const x of [118, 690]) add(`<rect x="${x - 15}" y="56" width="30" height="40" rx="4" fill="url(#chrome)"/>`);
-add('<rect x="720" y="70" width="60" height="26" rx="3" fill="#20365e"/><rect x="800" y="72" width="32" height="24" rx="3" fill="#151617"/>');
 
 // --- plaque ---
 add(`<rect x="0" y="${PANEL_TOP}" width="${W}" height="${H - PANEL_TOP}" rx="10" fill="url(#bezel)"/>`);
@@ -273,9 +265,10 @@ add('<rect x="160" y="550" width="102" height="15" rx="2" fill="none" stroke="#c
 text(208, 577, 'OFF • • ON', { size: 7 }); toggle(208, 590, 28, 20, 1);
 const scfx = [['SPACE', 180, 647], ['DUB\nECHO', 236, 647], ['CRUSH', 180, 704], ['SWEEP', 236, 704], ['NOISE', 180, 760], ['FILTER', 236, 760]];
 for (const [l, x, y] of scfx) {
-  if (l.includes('\n')) { button(x, y, 38, 26, '', 'white'); const [a, b] = l.split('\n'); text(x, y - 1.5, a, { size: 7 }); text(x, y + 7, b, { size: 7 }); } else button(x, y, 38, 26, l, 'white', l === 'FILTER' ? 'scfx-filter' : '', 7.2);
+  const id = `scfx-${l.replace('\n', '').replace(' ', '').toLowerCase()}`; // scfx-space, scfx-dubecho, scfx-crush, scfx-sweep, scfx-noise, scfx-filter
+  if (l.includes('\n')) { button(x, y, 38, 26, '', 'white', id); const [a, b] = l.split('\n'); text(x, y - 1.5, a, { size: 7 }); text(x, y + 7, b, { size: 7 }); } else button(x, y, 38, 26, l, 'white', id, 7.2);
 }
-text(208, 806, 'PARAMETER', { size: 9 }); scaleDots(205, 838, 32, 11); knob(205, 838, 22, 'plain'); text(180, 870, 'MIN', { size: 7.5 }); text(232, 870, 'MAX', { size: 7.5 });
+text(208, 806, 'PARAMETER', { size: 9 }); scaleDots(205, 838, 32, 11); knob(205, 838, 22, 'plain', 'scfx-param'); text(180, 870, 'MIN', { size: 7.5 }); text(232, 870, 'MAX', { size: 7.5 });
 text(208, 909, 'HEADPHONES A', { size: 11, weight: 600 });
 button(180, 935, 34, 24, '', 'cueOff'); text(180, 933, 'LINK', { size: 6.8, fill: '#f6a04a' }); text(180, 941, 'CUE', { size: 6.8, fill: '#f6a04a' });
 button(236, 935, 34, 24, '', 'cueOff'); text(236, 933, 'MONO', { size: 6.8, fill: '#f6a04a' }); text(236, 941, 'SPLIT', { size: 6.8, fill: '#f6a04a' });

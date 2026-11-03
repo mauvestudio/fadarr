@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const MODES = ['space', 'dubecho', 'crush', 'sweep', 'noise', 'filter'];
+  const MODES = ['space', 'dubecho', 'crush', 'sweep', 'noise', 'filter', 'none']; // none : aucun effet choisi, le potard COLOR ne fait rien
   const TC = 0.012; // constante de lissage des réglages (s) : pas de « zipper » en tournant le potard
   const DEAD = 0.03; // zone neutre au centre du potard
 
@@ -132,7 +132,7 @@
       if (this.mode !== 'dubecho') set(c, this.fb.gain, 0, 0.3);
       flat(this.f1); flat(this.f2);
       if (this.crusher) { set(c, this.crusher.parameters.get('bits'), 16); set(c, this.crusher.parameters.get('down'), 1); }
-      if (!on && this.mode !== 'dubecho') return;
+      if (this.mode === 'none' || (!on && this.mode !== 'dubecho')) return;
       switch (this.mode) {
         case 'filter': {
           const q = 0.7 + p * 5.5; // résonance

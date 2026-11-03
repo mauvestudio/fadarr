@@ -159,6 +159,7 @@
       this.el = $(`#deck-${id}`);
       this.el.appendChild($('#deck-tpl').content.cloneNode(true));
       $('.deck-letter', this.el).textContent = id;
+      this.overEl = $('.wave-over', this.el); this.zoomEl = $('.wave-zoom', this.el); // gardés à part : un skin matériel les déplace dans l'écran de sa platine
       this.track = null;       // fiche du morceau (API)
       this.buffer = null;      // AudioBuffer
       this.peaks = null;       // { rate, max: Float32Array }
@@ -908,7 +909,7 @@
 
   function drawDeck(d) {
     // --- vue d'ensemble ---
-    const over = $('.wave-over', d.el);
+    const over = d.overEl;
     let { w, h, dpr } = sizeCanvas(over);
     let g = over.getContext('2d');
     g.clearRect(0, 0, w, h);
@@ -928,7 +929,7 @@
       g.fillStyle = '#ff3b3b'; g.fillRect(Math.round(px), 0, 2 * dpr, h);
     }
     // --- vue zoomée (la tête de lecture au centre) ---
-    const zoom = $('.wave-zoom', d.el);
+    const zoom = d.zoomEl;
     ({ w, h, dpr } = sizeCanvas(zoom));
     g = zoom.getContext('2d');
     g.clearRect(0, 0, w, h);
@@ -1115,10 +1116,12 @@
     draw();
   }
 
-  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary' };
+  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary', pionarr: 'Pionarr' };
+  const HW_SKINS = ['pionarr']; // skins « matériel » : façades dessinées (public/hwskin.js) posées sur le même moteur
   function applySkin(name) {
     if (!SKINS[name]) name = 'base';
     document.body.dataset.skin = name;
+    if (window.fadarrHw) { if (HW_SKINS.includes(name)) window.fadarrHw.mount(name).catch((e) => { toast(e.message, 'error'); applySkin('base'); }); else window.fadarrHw.unmount(); }
     $$('.mixer .knob input').forEach((i) => i._draw && i._draw());
     $('#skin').value = name;
     $('#mx-skin-name').textContent = name === 'base' ? '' : name === 'rotary' ? 'ROTARY MIXER' : SKINS[name].toUpperCase();
@@ -1784,6 +1787,19 @@
       const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.cueCount = n;
       const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(12)`); if (tr) tr.textContent = n || ''; // colonne Cues
     },
+
+    /** Sélection (ligne bleue) déplacée de `delta` lignes ; renvoie le morceau sélectionné. Sert au sélecteur des platines. */
+    moveSel(delta) {
+      const rows = this._vrows || []; if (!rows.length) return null;
+      let i = rows.findIndex((r) => r.path === this._sel);
+      i = i < 0 ? (delta > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, i + delta));
+      this._sel = rows[i].path;
+      const wrap = $('.table-wrap');
+      if (wrap) { const top = i * this._rowH; if (top < wrap.scrollTop + this._rowH) wrap.scrollTop = Math.max(0, top - this._rowH); else if (top > wrap.scrollTop + wrap.clientHeight - 3 * this._rowH) wrap.scrollTop = top - wrap.clientHeight + 3 * this._rowH; }
+      this.paintWindow();
+      return rows[i];
+    },
+    selected() { return (this._vrows || []).find((r) => r.path === this._sel) || null; },
 
     updateAnalysis(path, r) {
       for (const list of [this.rows, this._vrows || []]) {
@@ -2590,4 +2606,7 @@
   refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
   requestAnimationFrame(frame);
   window.fadarr = { decks, library }; // pour le débogage dans la console
+  // pour les skins matériel (public/hwskin.js) : même moteur, autre façade
+  window.fadarrApp = { decks, library, soundColor, local, fmt, showKey, keyColor, t, toast, HOT_COLORS, PAD, get refDeck() { return refDeck; }, applySkin };
+  if (HW_SKINS.includes(document.body.dataset.skin) && window.fadarrHw) window.fadarrHw.mount(document.body.dataset.skin).catch(() => applySkin('base'));
 })();

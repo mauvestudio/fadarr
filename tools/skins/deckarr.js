@@ -201,9 +201,9 @@ T(705, 102, '⏻', { size: 10 });
 btn(683, 128, 26, 26, 'BACK', { size: 6.5, ctl: 'back' }); btn(722, 128, 26, 26, 'TAG TRACK', { size: 5, label2: '/REMOVE', ctl: 'tag' });
 {
   const [cx, cy] = P(706, 183);
-  add(`<circle cx="${cx + 2}" cy="${cy + 4}" r="40" fill="#000" opacity=".6" filter="url(#blur3)"/><circle cx="${cx}" cy="${cy}" r="38" fill="url(#rbtn)" stroke="#2a2b2e" stroke-width="1.5"/>`);
+  add(`<g data-ctl="rotary"><circle cx="${cx + 2}" cy="${cy + 4}" r="40" fill="#000" opacity=".6" filter="url(#blur3)"/><circle cx="${cx}" cy="${cy}" r="38" fill="url(#rbtn)" stroke="#2a2b2e" stroke-width="1.5"/>`);
   add(`<circle cx="${cx}" cy="${cy}" r="27" fill="url(#jogChrome)"/><circle cx="${cx}" cy="${cy}" r="23" fill="url(#cap)"/>`); spun(cx, cy, 23, 1.4);
-  add(`<g data-ctl="rotary"><circle cx="${cx}" cy="${cy}" r="23" fill="url(#spunSheen)"/></g>`);
+  add(`<circle cx="${cx}" cy="${cy}" r="23" fill="url(#spunSheen)"/></g>`);
 }
 btn(683, 240, 26, 26, '◂TRACK', { size: 5.2, label2: 'FILTER', ctl: 'filter' }); btn(722, 240, 26, 26, 'SHORT', { size: 6, label2: 'CUT', ctl: 'shortcut' });
 T(718, 282, 'MP3/AAC/WAV/', { size: 6.5, italic: true }); T(718, 291, 'AIFF/FLAC/ALAC', { size: 6.5, italic: true });

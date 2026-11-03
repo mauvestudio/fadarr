@@ -3,15 +3,20 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
-## [Non publié]
+## [0.14.0] — 2026-11-04
 ### Ajouté
 - **Sound Color FX façon table de club** (`public/colorfx.js`) : le potard filtre de chaque voie pilote l'effet choisi, commun aux deux voies
   (à gauche graves / passe-bas, à droite aigus / passe-haut, neutre au centre), avec un potard PARAMETER :
   FILTER (résonant 24 dB/oct, PARAMETER = résonance), SPACE (réverbe filtrée), DUB ECHO (écho calé sur le tempo, qui s'éteint tout seul),
   CRUSH (réduction de bits et d'échantillonnage), SWEEP (gate rythmique à gauche, passe-bande qui balaie à droite), NOISE (bruit filtré).
   Réglages lissés (pas de craquement en tournant). Par défaut : FILTER, déjà plus « table de club » que l'ancien filtre.
-  Le choix de l'effet et le potard PARAMETER arrivent avec le skin Pionarr.
-- Skin Pionarr : façade de la table 2 voies (`tools/skins/pionarr.js` -> `public/skins/pionarr.svg`), pas encore branchée.
+- **Skin « Pionarr + Deckarr »** (menu Skin) : deux platines Deckarr DKR-3000 (façon CDJ-3000) de part et d'autre de la table
+  Pionarr PNR-A2 (façon DJM, 2 voies). Façades 100 % vectorielles, sans logo ni police de marque (`tools/skins/*.js`).
+  Tout est branché sur le même moteur : TRIM, EQ, COLOR + Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) et
+  PARAMETER, faders, crossfader, MASTER, vu-mètres ; sur les platines : PLAY / CUE, 8 hot cues, IN / OUT / RELOOP, BEAT LOOP 4 / 8,
+  BEAT JUMP, SEARCH, MEMORY et CALL, BEAT SYNC, fader de tempo et sa plage, TIME MODE, jog (scratch à l'arrêt, pitch bend en lecture).
+  Le **sélecteur** à droite de l'écran fait défiler la bibliothèque, un appui charge le morceau ; les écrans affichent les vraies
+  formes d'onde, le temps, le tempo, le BPM et la tonalité. Changer de skin ne coupe pas la lecture.
 
 ## [0.13.0] — 2026-11-03
 ### Ajouté
@@ -207,6 +212,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.14.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.14.0
 [0.13.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.13.0
 [0.12.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.1
 [0.12.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.0

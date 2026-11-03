@@ -48,6 +48,21 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
 - **NAS switch** — disconnect the NAS from the header (library and playlists stay browsable; loaded decks keep playing).
 - **French / English** — and ready for more languages (see below).
 
+## Training looks
+
+Practise on the gear you will play on: the same engine, several faces (Skin menu). Changing look never stops the music.
+
+| Look | Inspired by | Status |
+|---|---|---|
+| **Pionarr + Deckarr** | a club mixer (2 channels) between two flagship players | ✅ |
+| **Traktarr** | Traktor (the current default look) | ✅ |
+| **Xonarr + Deckarr** | a British club mixer with filters, between the same players | in progress |
+| **Rekordarr** | Rekordbox | in progress |
+
+![Pionarr + Deckarr](docs/look-pionarr.jpg)
+
+*Pionarr + Deckarr: turn the browse knob to scroll the library, press it to load; Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) on the COLOR knobs. All drawn from scratch — no brand logos or artwork.*
+
 ## Your Traktor library, anywhere
 
 Coming from Traktor? Import your `collection.nml` and fadarr reads your whole library: every playlist and folder,
