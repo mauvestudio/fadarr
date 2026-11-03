@@ -49,6 +49,13 @@ function endTicks(cx, cy, r0, r1_) {
  * Potard. kind : 'eq' (anneau blanc), 'plain' (noir), 'trim' (gris), 'color' (gros, arc autour), 'small'.
  * Le groupe .rot tourne de -150° à +150° (valeur réglée par l'appli).
  */
+/** Texture « métal tourné » : fins anneaux concentriques, très légers, sur le dessus du potard. */
+function spun(cx, cy, rr, strength = 1) {
+  let d = '';
+  for (let k = 1.4, i = 0; k < rr; k += 1.15, i++) d += `<circle cx="${cx}" cy="${cy}" r="${r1(k)}" fill="none" stroke="${i % 2 ? '#000' : '#fff'}" stroke-opacity="${r1((i % 2 ? 0.05 : 0.045) * strength * 1000) / 1000}" stroke-width=".55"/>`;
+  add(d);
+}
+
 function knob(cx, cy, r, kind = 'plain', ctl = '', value = 0) {
   const id = ctl ? ` data-ctl="${ctl}"` : '';
   const ang = value * 150;
@@ -60,9 +67,13 @@ function knob(cx, cy, r, kind = 'plain', ctl = '', value = 0) {
   add(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${kind === 'trim' ? 'skirtGrey' : 'skirt'})"/>`);
   add(`<circle cx="${cx}" cy="${cy}" r="${r - 0.8}" fill="none" stroke="${kind === 'trim' ? '#707274' : '#3c3d40'}" stroke-width="1.6" stroke-dasharray="0.9 1.3" opacity=".9"/>`);
   // dessus
+  const top = r * 0.78;
+  if (kind !== 'eq') add(`<circle cx="${cx}" cy="${cy}" r="${r1(top + 1.6)}" fill="url(#chromeRing)" opacity="${kind === 'color' ? 1 : 0.75}"/>`); // liseré chromé
+  add(`<circle cx="${cx}" cy="${cy}" r="${top}" fill="url(#${kind === 'trim' ? 'capGrey' : kind === 'color' ? 'gunmetal' : 'cap'})"/>`);
+  spun(cx, cy, top, kind === 'color' ? 1.6 : 1);
+  add(`<circle cx="${cx}" cy="${cy}" r="${top}" fill="url(#spunSheen)"/>`);
+  add(`<circle cx="${cx}" cy="${cy}" r="${top}" fill="url(#capShine)"/>`);
   add(`<g class="rot" transform="rotate(${ang} ${cx} ${cy})">`);
-  add(`<circle cx="${cx}" cy="${cy}" r="${r * 0.78}" fill="url(#${kind === 'trim' ? 'capGrey' : 'cap'})"/>`);
-  add(`<circle cx="${cx}" cy="${cy}" r="${r * 0.78}" fill="url(#capShine)"/>`);
   add(`<rect x="${r1(cx - 1.6)}" y="${r1(cy - r - (kind === 'eq' ? 3 : 0.5))}" width="3.2" height="${r1(r * 0.92 + (kind === 'eq' ? 3 : 0.5))}" rx="1.4" fill="#f4f4f4"/>`);
   add('</g>');
   add(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-opacity=".6" stroke-width=".8"/>`);
@@ -195,6 +206,10 @@ add(`<defs>
   <linearGradient id="lever" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4a4c50"/><stop offset=".5" stop-color="#202124"/><stop offset="1" stop-color="#3c3e42"/></linearGradient>
   <radialGradient id="screw" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#5c5e62"/><stop offset="1" stop-color="#151617"/></radialGradient>
   <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a5a1c"/><stop offset=".35" stop-color="#e9c46a"/><stop offset=".6" stop-color="#b8892e"/><stop offset="1" stop-color="#6d4f17"/></linearGradient>
+  <linearGradient id="chromeRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7f8f9"/><stop offset=".18" stop-color="#9da0a4"/><stop offset=".36" stop-color="#eceef0"/><stop offset=".55" stop-color="#5f6266"/><stop offset=".72" stop-color="#d4d6d9"/><stop offset="1" stop-color="#6b6e72"/></linearGradient>
+  <linearGradient id="chromeArc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5d6064"/><stop offset=".25" stop-color="#e9ebed"/><stop offset=".5" stop-color="#9a9da1"/><stop offset=".75" stop-color="#f4f5f6"/><stop offset="1" stop-color="#6a6d71"/></linearGradient>
+  <linearGradient id="gunmetal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b6e73"/><stop offset=".3" stop-color="#2a2c2f"/><stop offset=".5" stop-color="#4f5256"/><stop offset=".7" stop-color="#1c1d1f"/><stop offset="1" stop-color="#3a3c40"/></linearGradient>
+  <linearGradient id="spunSheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset=".65" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".1"/></linearGradient>
   <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d7075"/><stop offset=".4" stop-color="#f0f1f2"/><stop offset=".7" stop-color="#a7aaae"/><stop offset="1" stop-color="#5d6064"/></linearGradient>
   <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d0e12"/><stop offset="1" stop-color="#050506"/></linearGradient>
   <linearGradient id="usbSlot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d3f43"/><stop offset=".55" stop-color="#242528"/><stop offset="1" stop-color="#111214"/></linearGradient>
@@ -292,12 +307,13 @@ for (const i of [0, 1]) {
     text(cx - 10, y + 38, '-26/-∞', { size: 6.8, anchor: 'end', spacing: 0 }); text(cx + 26, y + 38, '+6', { size: 7.4 });
   }
   // COLOR (filtre de fadarr)
-  text(cx, 628, 'COLOR', { size: 10 });
-  add(`<rect x="${cx - 11}" y="633" width="22" height="9" rx="1.5" fill="#d8d8d8"/>`); text(cx, 640, 'LOCK', { size: 6, fill: '#111', spacing: 0 });
-  const [ax, ay] = polar(cx, 671, 33, -135); const [bx, by] = polar(cx, 671, 33, 135);
-  add(`<path d="M${r1(ax)} ${r1(ay)}A33 33 0 1 1 ${r1(bx)} ${r1(by)}" fill="none" stroke="#7c7f83" stroke-width="5" stroke-linecap="round"/>`);
-  add(`<path d="M${r1(ax)} ${r1(ay)}A33 33 0 1 1 ${r1(bx)} ${r1(by)}" fill="none" stroke="#cfd2d6" stroke-width="1.2" stroke-linecap="round" opacity=".6"/>`);
-  knob(cx, 671, 25, 'plain', `${c}-color`);
+  text(cx, 623, 'COLOR', { size: 10 });
+  add(`<rect x="${cx - 11}" y="627" width="22" height="8.5" rx="1.5" fill="#d8d8d8"/>`); text(cx, 633.6, 'LOCK', { size: 6, fill: '#111', spacing: 0 });
+  const [ax, ay] = polar(cx, 673, 33, -135); const [bx, by] = polar(cx, 673, 33, 135);
+  add(`<path d="M${r1(ax)} ${r1(ay + 1.5)}A33 33 0 1 1 ${r1(bx)} ${r1(by + 1.5)}" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round" opacity=".6" filter="url(#blur2)"/>`);
+  add(`<path d="M${r1(ax)} ${r1(ay)}A33 33 0 1 1 ${r1(bx)} ${r1(by)}" fill="none" stroke="url(#chromeArc)" stroke-width="5.5" stroke-linecap="round"/>`);
+  add(`<path d="M${r1(ax)} ${r1(ay - 1.4)}A31.6 31.6 0 1 1 ${r1(bx)} ${r1(by - 1.4)}" fill="none" stroke="#fff" stroke-width=".8" stroke-linecap="round" opacity=".45"/>`);
+  knob(cx, 673, 25, 'color', `${c}-color`);
   text(cx - 30, 714, 'LOW', { size: 7.6 }); text(cx + 30, 714, 'HI', { size: 7.6 });
   // CUE
   text(cx - 39, 758, 'A', { size: 9 }); text(cx + 15, 758, 'B', { size: 9 });
