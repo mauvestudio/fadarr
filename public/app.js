@@ -272,9 +272,14 @@
         refDeck = this; library.renderRows(); // la liste montre ce qui s'enchaîne avec ce morceau
         const mono = toMono(buf);
         if (pAn) pAn.then((r) => this.serverAnalysis(token, buf, r));
-        const peaks = await analyze(mono, buf.sampleRate, buf.duration, !this.bpm && !pAn, (grid) => {
-          // grille détectée (comme Mixxx) : posée sans marquer le morceau « modifié », si rien n'a changé entre-temps
-          if (token === this.loading && this.buffer === buf && !this.bpm && grid) this.saveMeta({ bpm: grid.bpm, gridStart: grid.gridStart }, true);
+        const noGrid = () => !this.bpm || !Number.isFinite(this.track && this.track.gridStart);
+        const peaks = await analyze(mono, buf.sampleRate, buf.duration, noGrid() && !pAn, (grid) => {
+          // grille détectée : posée sans marquer le morceau « modifié », si rien n'a changé entre-temps.
+          // BPM déjà connu (tags) : on garde ce BPM s'il colle à la détection (±2 %), et on ne prend que le début de grille.
+          if (!(token === this.loading && this.buffer === buf && noGrid() && grid)) return;
+          if (this.bpm && Math.abs(grid.bpm - this.bpm) / this.bpm < 0.02) {
+            const beat = 60 / this.bpm; this.saveMeta({ gridStart: Math.round((((grid.gridStart % beat) + beat) % beat) * 1000) / 1000 }, true);
+          } else this.saveMeta({ bpm: grid.bpm, gridStart: grid.gridStart }, true);
         });
         if (token !== this.loading) return;
         this.peaks = peaks; // le dessin se fait au rythme de la boucle d'animation
@@ -388,7 +393,10 @@
     serverAnalysis(token, buf, r) {
       if (token !== this.loading || this.buffer !== buf || !this.track) return;
       if (!r || r.error) { // analyse impossible : détection rapide dans le navigateur, comme avant
-        if (!this.bpm) { const g = detectBpmGrid(toMono(buf), buf.sampleRate, buf.duration); if (g) this.saveMeta({ bpm: g.bpm, gridStart: g.gridStart }, true); }
+        if (!this.bpm || !Number.isFinite(this.track.gridStart)) {
+          const g = detectBpmGrid(toMono(buf), buf.sampleRate, buf.duration); if (!g) return;
+          if (this.bpm && Math.abs(g.bpm - this.bpm) / this.bpm < 0.02) { const beat = 60 / this.bpm; this.saveMeta({ gridStart: Math.round((((g.gridStart % beat) + beat) % beat) * 1000) / 1000 }, true); } else this.saveMeta({ bpm: g.bpm, gridStart: g.gridStart }, true);
+        }
         return;
       }
       const tr = this.track;
@@ -906,6 +914,12 @@
       g.drawImage(overviewImage(d, w, h), 0, 0);
       g.fillStyle = 'rgba(8,9,11,.55)'; g.fillRect(0, 0, px, h); // partie déjà jouée assombrie
       if (d.loop) { g.fillStyle = d.loop.active ? 'rgba(60,207,110,.28)' : 'rgba(255,255,255,.08)'; g.fillRect((d.loop.start / d.duration) * w, 0, Math.max(2, ((d.loop.end - d.loop.start) / d.duration) * w), h); }
+      // un trait fin toutes les 16 mesures (64 temps), comme les repères de phrase de Rekordbox
+      if (d.bpm && Number.isFinite(d.track.gridStart)) {
+        const phrase = (60 / d.bpm) * 64;
+        g.fillStyle = 'rgba(255,255,255,.28)';
+        for (let t = d.track.gridStart; t < d.duration; t += phrase) g.fillRect(Math.round((t / d.duration) * w), 0, dpr, h);
+      }
       for (const c of d.cues) { g.fillStyle = cueColor(c); g.fillRect(Math.round((c.start / d.duration) * w), 0, 2 * dpr, h); }
       g.fillStyle = '#ff3b3b'; g.fillRect(Math.round(px), 0, 2 * dpr, h);
     }
@@ -932,17 +946,22 @@
         draw(g, x, h, peakRange(d.peaks, i0, i1), cols, h - 6);
       }
       g.globalAlpha = 1;
-      // grille de tempo (par-dessus, discrète ; temps fort toutes les 4)
+      // grille de mesure façon Rekordbox : graduations en haut et en bas sur chaque temps, longues et rouges sur le 1er temps
+      // de chaque mesure, numéro de mesure toutes les 4 mesures (mesure 1 = celle qui commence au début de la grille)
       if (d.bpm && Number.isFinite(d.track.gridStart)) {
         const beat = 60 / d.bpm;
         const first = Math.ceil((t0 - d.track.gridStart) / beat);
+        g.font = `600 ${9 * dpr}px system-ui`;
         for (let k = first; ; k++) {
           const t = d.track.gridStart + k * beat; if (t > t0 + span) break;
-          const x = ((t - t0) / span) * w;
-          g.fillStyle = k % 4 === 0 ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.16)';
-          if (k % 4 === 0) { g.fillRect(Math.round(x), 0, dpr, 5 * dpr); g.fillRect(Math.round(x), h - 5 * dpr, dpr, 5 * dpr); }
-          g.fillStyle = k % 4 === 0 ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.07)';
-          g.fillRect(Math.round(x), 0, dpr, h);
+          const x = Math.round(((t - t0) / span) * w);
+          const down = ((k % 4) + 4) % 4 === 0;
+          const len = (down ? 9 : 4) * dpr;
+          g.fillStyle = down ? '#e8413c' : 'rgba(255,255,255,.62)';
+          g.fillRect(x, 0, (down ? 2 : 1) * dpr, len);
+          g.fillRect(x, h - len, (down ? 2 : 1) * dpr, len);
+          const bar = Math.floor(k / 4) + 1;
+          if (down && bar >= 1 && (bar - 1) % 4 === 0) { g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText(String(bar), x + 4 * dpr, 9 * dpr); }
         }
       }
       g.font = `600 ${10 * dpr}px system-ui`;

@@ -3,6 +3,15 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.12.1] — 2026-11-03
+### Ajouté
+- **Grille de mesure façon Rekordbox** sur la forme d'onde : graduations en haut et en bas à chaque temps, longues et rouges sur
+  le 1er temps de chaque mesure, numéro de mesure toutes les 4 mesures ; sur la vue d'ensemble, un trait toutes les 16 mesures.
+### Corrigé
+- Un morceau qui n'avait qu'un BPM (tags) sans début de grille n'affichait aucune grille : le début de grille est maintenant
+  détecté au chargement (analyse du serveur, ou du navigateur en secours), en gardant le BPM des tags s'il colle (±2 %).
+- *EN: Rekordbox-style bar grid on the waveforms (beat ticks, red downbeats, bar numbers, phrase marks on the overview); tracks with a BPM but no grid start now get one.*
+
 ## [0.12.0] — 2026-11-03
 ### Ajouté
 - **Importer une clé USB** (bouton en haut) : fadarr lit une clé préparée pour CDJ, par Rekordbox ou par lui-même (`public/usbread.js`),
@@ -174,6 +183,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.12.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.1
 [0.12.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.0
 [0.11.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.11.0
 [0.10.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.10.0
