@@ -100,8 +100,8 @@ add(`<defs>
   <filter id="blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
   <filter id="blur5" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
   <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="11" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .04 0"/></filter>
-  <filter id="brushed" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".002 .9" numOctaves="2" seed="3" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .07 0"/></filter>
-  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1d20"/><stop offset=".5" stop-color="#151618"/><stop offset="1" stop-color="#101112"/></linearGradient>
+  <filter id="brushed" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".002 .9" numOctaves="2" seed="3" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .055 0"/></filter>
+  <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#151618"/><stop offset=".5" stop-color="#101113"/><stop offset="1" stop-color="#0c0d0e"/></linearGradient>
   <linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e3033"/><stop offset="1" stop-color="#080809"/></linearGradient>
   <radialGradient id="skirt" cx=".42" cy=".35" r=".75"><stop offset="0" stop-color="#3b3c40"/><stop offset=".7" stop-color="#1a1b1d"/><stop offset="1" stop-color="#0b0b0c"/></radialGradient>
   <radialGradient id="cap" cx=".4" cy=".3" r=".85"><stop offset="0" stop-color="#3d3e42"/><stop offset=".55" stop-color="#202124"/><stop offset="1" stop-color="#0e0e10"/></radialGradient>
@@ -133,7 +133,7 @@ add(`<defs>
   add(`<rect x="${bx + 3}" y="${by + 3}" width="${bx2 - bx - 6}" height="${by2 - by - 6}" rx="10" fill="url(#panel)"/>`);
   add(`<rect x="${bx + 3}" y="${by + 3}" width="${bx2 - bx - 6}" height="${by2 - by - 6}" rx="10" filter="url(#brushed)"/>`);
   add(`<rect x="${bx + 3}" y="${by + 3}" width="${bx2 - bx - 6}" height="${by2 - by - 6}" rx="10" filter="url(#grain)"/>`);
-  add(`<rect x="${sx + 3}" y="${sy + 3}" width="${sx2 - sx - 6}" height="${sy2 - sy - 6}" rx="8" fill="#141517"/>`);
+  add(`<rect x="${sx + 3}" y="${sy + 3}" width="${sx2 - sx - 6}" height="${sy2 - sy - 6}" rx="8" fill="#0f1012"/>`);
 }
 
 // --- touches au-dessus de l'écran ---
