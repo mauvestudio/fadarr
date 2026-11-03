@@ -20,6 +20,8 @@ const EN = {
   'Préparation introuvable (le serveur a peut-être redémarré).': 'Preparation not found (the server may have restarted).',
   'Fichier introuvable.': 'File not found.',
   'Date invalide pour export.pdb.': 'Invalid date for export.pdb.',
+  "Analyse d'abord ta bibliothèque (bouton « Analyser le NAS ») : l'import retrouve les morceaux du NAS d'après la clé.": 'Scan your library first (“Scan NAS” button): the import finds the NAS tracks from the stick.',
+  'Clé illisible.': 'Unreadable stick.',
   "Analyseur absent : reconstruis l'image Docker (ou lance npm run build:analyzer).": 'Analyzer missing: rebuild the Docker image (or run npm run build:analyzer).'
 };
 

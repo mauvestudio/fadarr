@@ -1967,22 +1967,40 @@
         <input type="text" id="s-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
         <span class="small muted">${t("Le dossier qui correspond au dossier musique du NAS quand il est monté sur le Mac (Finder > Aller > Se connecter au serveur), ou ton SSD s'il a la même arborescence. Les morceaux du rekordbox.xml pointeront là.")}</span>
       </label>
-      <label>${t('Décalage des cues pour les MP3 (ms)')}
+      <label>${t('Correction supplémentaire pour les MP3 (ms)')}
         <input type="number" id="s-off" value="${Number(s.mp3OffsetMs) || 0}" step="1" min="-500" max="500">
-        <span class="small muted">${t("Traktor et Rekordbox ne comptent pas le début d'un MP3 tout à fait pareil. Laisse 0 tant qu'on n'a pas calibré sur tes morceaux. Les WAV et AIFF ne sont pas concernés.")}</span>
+        <span class="small muted">${t('fadarr recale déjà chaque MP3 selon son encodeur (LAME : 50 ms, ffmpeg : 25 ms, mesuré sur ta clé) pour Rekordbox et les CDJ. Laisse 0, sauf si une platine montre encore un écart. Les WAV et AIFF ne sont pas concernés.')}</span>
       </label>
       <label class="check"><input type="checkbox" id="s-ag"${s.autoGain !== false ? ' checked' : ''}> ${t('Volume harmonisé (decks et pré-écoute)')}</label>
       <label>${t('Niveau visé (LUFS)')}
         <input type="number" id="s-lufs" value="${Number.isFinite(Number(s.targetLufs)) ? Number(s.targetLufs) : -9}" step="0.5" min="-24" max="-5">
         <span class="small muted">${t('Chaque morceau analysé est ramené à ce niveau (au plus +6 dB, sans saturer). -9 convient à la musique électronique masterisée ; plus bas = marge pour les morceaux plus calmes.')}</span>
       </label>
+      <label>${t('Cache')}
+        <span class="cache-row"><span id="s-cache" class="small">…</span><button type="button" class="btn" id="s-cache-clear">${t('Vider')}</button></span>
+        <span class="small muted">${t('Formes d’onde calculées pour la clé USB et fichiers préparés : tout se recrée au besoin (le prochain export de clé sera juste plus long).')}</span>
+      </label>
+      <label>${t('Taille maximale du cache (Mo)')}
+        <input type="number" id="s-cache-max" value="${Number.isFinite(Number(s.cacheMaxMb)) ? Number(s.cacheMaxMb) : 2000}" step="100" min="0">
+        <span class="small muted">${t('Au-delà, les fichiers les plus anciens sont effacés (au démarrage et après chaque export de clé). 0 = sans limite.')}</span>
+      </label>
       <label>${t('Langue')}
         <select id="s-lang">${Object.entries(window.I18N.LANGS).map(([k, v]) => `<option value="${k}"${k === window.I18N.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
       </label>
       <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="s-save" value="ok">${t('Enregistrer')}</button></div>`, (root) => {
+      const mb = (b) => (b >= 1024 * 1024 * 1024 ? `${(b / 1024 / 1024 / 1024).toFixed(1)} Go` : `${Math.round(b / 1024 / 1024)} Mo`);
+      const showCache = (c) => { $('#s-cache', root).textContent = t('{total} — formes d’onde {cols}, clé {gen}', { total: mb(c.bytes), cols: mb(c.parts.columns.bytes), gen: mb(c.parts.gen.bytes) }); };
+      api('GET', '/api/cache').then(showCache).catch(() => { $('#s-cache', root).textContent = '—'; });
+      $('#s-cache-clear', root).addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try {
+          const c = await api('DELETE', '/api/cache'); showCache(c);
+          toast(t('Cache vidé : {n} libérés.', { n: mb(c.freedBytes || 0) }) + (c.keptGen ? ` ${t('(fichiers de la clé en cours gardés)')}` : ''));
+        } catch (e) { toast(e.message, 'error'); }
+      });
       $('#s-save', root).addEventListener('click', async (ev) => {
         ev.preventDefault();
-        try { const ns = await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value), autoGain: $('#s-ag', root).checked, targetLufs: Number($('#s-lufs', root).value) });
+        try { const ns = await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value), cacheMaxMb: Number($('#s-cache-max', root).value), autoGain: $('#s-ag', root).checked, targetLufs: Number($('#s-lufs', root).value) });
           srvAn.autoGain = ns.autoGain !== false; srvAn.target = Number(ns.targetLufs);
           for (const d of [decks.A, decks.B]) if (d) d.applyAutoGain(); $('#modal').close(); toast(t('Réglages enregistrés.')); if ($('#s-lang', root).value !== window.I18N.lang) window.I18N.setLang($('#s-lang', root).value); } catch (e) { toast(e.message, 'error'); }
       });
@@ -2004,6 +2022,63 @@
       await library.reload();
     } catch (e) { toast(t('Import impossible : {msg}', { msg: e.message }), 'error'); }
     $('#nml-input').value = '';
+  }
+
+  /** Lit une clé USB pour CDJ branchée sur cet ordinateur (lecture seule) et importe playlists, cues et grilles. */
+  async function importUsbKey() {
+    if (!window.showDirectoryPicker) {
+      modal(`<h2>${t('Lecture de clé indisponible ici')}</h2>
+        <p>${t('Pour lire une clé, le navigateur doit être Chrome, Edge ou Brave, et fadarr ouvert en connexion sécurisée (https) ou sur cet ordinateur (localhost).')}</p>
+        <ul class="report">
+          <li>${t('Le plus simple : ouvre fadarr via Tailscale en https (sur l’Unraid : « tailscale serve --bg 3010 », puis l’adresse https://…ts.net qu’il affiche).')}</li>
+          <li>${t('Ou dans Chrome : chrome://flags, « Insecure origins treated as secure », ajoute l’adresse de fadarr (ex. http://192.168.1.70:3010), puis relance Chrome.')}</li>
+        </ul>
+        <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
+      return;
+    }
+    let dir;
+    try { dir = await window.showDirectoryPicker({ id: 'fadarr-usb', mode: 'read' }); } catch (e) { return; } // annulé
+    const R = window.FadarrUsbRead;
+    const fileAt = async (rel) => {
+      let h = dir; const parts = rel.replace(/^\/+/, '').split('/');
+      for (const p of parts.slice(0, -1)) h = await h.getDirectoryHandle(p);
+      return new Uint8Array(await (await (await h.getFileHandle(parts[parts.length - 1])).getFile()).arrayBuffer());
+    };
+    const el = $('#status-l');
+    try {
+      let pdbBytes;
+      try { pdbBytes = await fileAt('PIONEER/rekordbox/export.pdb'); } catch (e) { throw new Error(t('Pas de PIONEER/rekordbox/export.pdb : choisis la racine d’une clé préparée pour CDJ.')); }
+      const db = R.readPdb(pdbBytes);
+      let done = 0; let noAnlz = 0;
+      const queue = [...db.tracks];
+      const work = async () => {
+        while (queue.length) {
+          const tr = queue.shift();
+          if (tr.analyzePath) {
+            try {
+              const dat = await fileAt(tr.analyzePath);
+              let ext = null; try { ext = await fileAt(tr.analyzePath.replace(/\.DAT$/i, '.EXT')); } catch (e) { /* pas de .EXT */ }
+              tr.grid = R.gridSummary(R.readGrid(dat));
+              tr.cues = R.readCues(ext || dat);
+            } catch (e) { noAnlz++; }
+          } else noAnlz++;
+          done++;
+          if (done % 10 === 0) el.textContent = t('Lecture de la clé : {done} / {total}…', { done, total: db.tracks.length });
+        }
+      };
+      await Promise.all([work(), work(), work(), work(), work(), work()]);
+      el.textContent = t('Import de la clé…');
+      const res = await fetch('/api/import/usb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lang': window.I18N.lang }, body: JSON.stringify({ name: dir.name, tracks: db.tracks, playlists: db.playlists }) });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || t('Erreur {status}', { status: res.status }));
+      el.textContent = t('Prêt…');
+      modal(`<h2>${t('Clé {name} importée', { name: esc(dir.name) })}</h2>
+        <p>${t('{matched} morceaux sur {entries} retrouvés sur le NAS', { matched: `<b>${r.matched}</b>`, entries: r.entries })} · ${t('{n} playlists ({entries} entrées)', { n: `<b>${r.playlists}</b>`, entries: r.playlistTracks })}${r.playlistMissing ? `, ${t('{n} absentes du NAS', { n: r.playlistMissing })}` : ''} · ${t('{n} cues et loops importés', { n: `<b>${r.cuesImported}</b>` })}${r.keptEdited ? ` · ${t('{n} morceaux gardés tels que modifiés dans fadarr', { n: r.keptEdited })}` : ''}${noAnlz ? ` · ${t('{n} sans analyse sur la clé', { n: noAnlz })}` : ''}.</p>
+        <p class="small muted">${t('Les playlists sont dans Rekordbox › Clé {name}. Les MP3 sont recalés automatiquement selon leur encodeur.', { name: esc(dir.name) })}</p>
+        ${r.unmatchedCount ? `<p class="muted">${t('{n} morceaux de la clé introuvables sur le NAS', { n: r.unmatchedCount })}${r.unmatchedCount > r.unmatched.length ? ` ${t('({n} premiers)', { n: r.unmatched.length })}` : ''} :</p><ul>${r.unmatched.map((u) => `<li>${esc(u.artist ? `${u.artist} - ${u.title}` : u.file)}</li>`).join('')}</ul>` : `<p>${t('Tous les morceaux ont été retrouvés.')}</p>`}
+        <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
+      await library.reload();
+    } catch (e) { el.textContent = t('Prêt…'); toast(t('Import impossible : {msg}', { msg: e.message }), 'error'); }
   }
 
   async function importRekordbox(file) {
@@ -2228,6 +2303,7 @@
     $('#export-btn').addEventListener('click', () => openExport().catch((e) => toast(e.message, 'error')));
     $('#nml-input').addEventListener('change', (e) => importTraktor(e.target.files[0]));
     $('#rbxml-input').addEventListener('change', (e) => importRekordbox(e.target.files[0]));
+    $('#usb-import').addEventListener('click', () => importUsbKey().catch((e) => toast(e.message, 'error')));
     // style de forme d'onde (RGB façon Mixxx / 3 bandes)
     const wsel = $('#wave'); wsel.value = waveStyle;
     wsel.addEventListener('change', () => { waveStyle = wsel.value; try { localStorage.setItem('fadarr-wave', waveStyle); } catch (e) { /* rien */ } });

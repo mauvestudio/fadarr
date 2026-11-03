@@ -13,6 +13,7 @@
 const path = require('path');
 const library = require('./library');
 const store = require('./store');
+const mp3offset = require('./mp3offset');
 
 const esc = (v) => String(v ?? '')
   .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
@@ -58,7 +59,6 @@ function exportXml(playlistIds = []) {
     ids.set(rel, ids.size + 1);
   }
 
-  const offsetS = (settings.mp3OffsetMs || 0) / 1000;
   const lines = [];
   const noBpm = [];   // morceaux sans BPM : pas de grille possible -> inutilisables en SYNC / quantize sur les CDJ
   let noGrid = 0;     // BPM connu mais pas de début de grille précis (grille posée à 0 : à vérifier dans Rekordbox)
@@ -66,8 +66,7 @@ function exportXml(playlistIds = []) {
   for (const [rel, id] of ids) {
     const e = library.entry(rel);
     const info = store.trackInfo(rel) || {};
-    const isMp3 = /\.mp3$/i.test(rel);
-    const shift = isMp3 ? offsetS : 0;
+    const shift = mp3offset.deviceShift(library.absPath(rel), settings); // MP3 : position fadarr -> Rekordbox, selon l'encodeur
     const t = (s) => Math.max(0, s + shift).toFixed(3);
     const bpm = info.bpm || e.bpm || null;
     const rating = RATING[Math.max(0, Math.min(5, Math.round((Number(info.rating) || 0) / 51)))] || 0;

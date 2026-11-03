@@ -29,7 +29,11 @@ with the same settings.
 It is built on **qm-dsp** (`analyzer/qm-dsp/`, the copy shipped with Mixxx, including its `mixxx-changes.patch`),
 the Queen Mary, University of London DSP library by Chris Cannam, Matthew Davies, Christian Landone, Katy Noland
 and others — GPL-2.0-or-later (see `analyzer/qm-dsp/COPYING`). It includes kissfft (BSD, `ext/kissfft/COPYING`).
-Loudness is measured with ffmpeg's `ebur128` filter (EBU R128).
+Loudness is measured with ffmpeg's `ebur128` filter (EBU R128). The kick-drum phase check after the grid is fadarr's own.
+
+Reading a USB stick (`public/usbread.js`) reverses fadarr's rbxport-based writers; the cue and grid rules (grid from the `.DAT`,
+cues preferably from the `.EXT`) and the per-encoder MP3 timing offsets follow Mixxx's Rekordbox import
+(`src/library/rekordbox/rekordboxfeature.cpp`), re-measured on a real stick for fadarr (`src/mp3offset.js`).
 
 ## Trademarks
 

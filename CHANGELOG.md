@@ -3,6 +3,28 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.12.0] — 2026-11-03
+### Ajouté
+- **Importer une clé USB** (bouton en haut) : fadarr lit une clé préparée pour CDJ, par Rekordbox ou par lui-même (`public/usbread.js`),
+  directement depuis le navigateur (Chrome / Edge, https ou localhost, lecture seule) : playlists et dossiers, hot cues, memory cues
+  et loops (couleurs, noms), grille, tonalité, couleur et note des morceaux. Les morceaux sont retrouvés sur le NAS comme pour
+  l'import XML ; les playlists arrivent dans Rekordbox › Clé <nom>. Testé sur une vraie clé : 399 morceaux, 26 playlists,
+  593 cues lus en 15 s ; l'aller-retour clé → fadarr → clé redonne les mêmes grilles et cues à la milliseconde.
+- **Décalage MP3 automatique, fichier par fichier** (`src/mp3offset.js`), à l'import comme à l'export (clé USB et rekordbox.xml) :
+  mesuré sur 375 morceaux d'une vraie clé (grilles Rekordbox contre l'analyse de fadarr, AIFF/WAV comme témoins) : MP3 LAME
+  avec en-tête gapless 50 ms, autres encodeurs (ffmpeg) 25 ms, sans en-tête 0. Même constat que Mixxx. Le réglage « décalage MP3 »
+  devient une correction supplémentaire (0 par défaut).
+- **Cache** dans les Réglages : taille (formes d'onde, fichiers préparés pour la clé), bouton Vider, taille maximale (2 Go par défaut) ;
+  ménage automatique au démarrage et après chaque export de clé.
+### Amélioré
+- **Grille sur la grosse caisse** : l'analyse vérifie l'énergie des graves sur le temps et le contretemps ; sur la clé de test, les
+  grilles justes passent de 67 % à 87 % (le détecteur de Mixxx accroche souvent les charlestons). Les morceaux déjà analysés seront
+  ré-analysés (version 2).
+- Import : quand plusieurs entrées visent le même fichier (MP3 et AIFF d'un même morceau sur une clé), la grille et les cues viennent
+  de celle dont le nom de fichier correspond.
+- *EN: import a CDJ USB stick (playlists, cues, grid, colours, ratings); automatic per-file MP3 offset (LAME 50 ms, other encoders 25 ms,
+  measured on a real stick); cache size, clear and limit in Settings; kick-phase check in the beat grid (67 % → 87 % correct grids).*
+
 ## [0.11.0] — 2026-11-03
 ### Ajouté
 - **Analyse audio avec les algorithmes de Mixxx** (`analyzer/`, qm-dsp, GPL-2.0-or-later) :
@@ -152,6 +174,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.12.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.12.0
 [0.11.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.11.0
 [0.10.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.10.0
 [0.9.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.1

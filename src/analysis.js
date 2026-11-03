@@ -14,7 +14,7 @@ const { spawn } = require('child_process');
 const store = require('./store');
 const library = require('./library');
 
-const VERSION = 1; // à augmenter si l'algorithme change : les morceaux seront ré-analysés
+const VERSION = 2; // à augmenter si l'algorithme change : les morceaux seront ré-analysés (2 : contrôle de phase sur la grosse caisse)
 const RATE = 44100;
 const JOBS = Math.max(1, Math.min(8, Number(process.env.FADARR_ANALYSIS_JOBS) || 2));
 

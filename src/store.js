@@ -23,7 +23,8 @@ const DEFAULT_SETTINGS = {
   macPrefix: '',       // chemin du dossier musique tel que le Mac le voit (ex. /Volumes/music/Electronic) : sert à l'export Rekordbox
   mp3OffsetMs: 0,      // décalage appliqué aux cues des MP3 entre Traktor et Rekordbox (à calibrer)
   autoGain: true,      // volume harmonisé dans les decks et la pré-écoute (LUFS mesuré par l'analyse)
-  targetLufs: -9       // niveau visé
+  targetLufs: -9,      // niveau visé
+  cacheMaxMb: 2000     // taille maximale du cache (formes d'onde, fichiers préparés pour la clé) ; 0 = sans limite
 };
 
 let db = { version: 1, tracks: {}, playlists: [], settings: { ...DEFAULT_SETTINGS } };
@@ -169,6 +170,12 @@ function replaceSourcePlaylists(source, list) {
   save();
 }
 
+/** Remplace, pour une source, les playlists pour lesquelles pred(p) est vrai (les autres de la source sont gardées). */
+function replacePlaylistsWhere(pred, source, list) {
+  db.playlists = db.playlists.filter((p) => p.source !== source || !pred(p)).concat(list.map((p) => ({ id: newId(), source, ...p })));
+  save();
+}
+
 /** Remplace les playlists importées depuis Traktor (les playlists fadarr ne sont jamais touchées). */
 function replaceTraktorPlaylists(list) {
   replaceSourcePlaylists('traktor', list);
@@ -184,6 +191,10 @@ function updateSettings(patch) {
     const v = Math.round(Number(patch.mp3OffsetMs));
     db.settings.mp3OffsetMs = Number.isFinite(v) ? Math.max(-500, Math.min(500, v)) : 0;
   }
+  if (patch.cacheMaxMb !== undefined) {
+    const v = Math.round(Number(patch.cacheMaxMb));
+    db.settings.cacheMaxMb = Number.isFinite(v) ? Math.max(0, Math.min(1000000, v)) : 2000;
+  }
   if (patch.autoGain !== undefined) db.settings.autoGain = Boolean(patch.autoGain);
   if (patch.targetLufs !== undefined) {
     const v = Number(patch.targetLufs);
@@ -197,5 +208,5 @@ load();
 
 module.exports = {
   DATA_DIR, trackInfo, updateTrack, cleanCues, playlists, playlist, createPlaylist, updatePlaylist, deletePlaylist, renameFolder,
-  replaceTraktorPlaylists, replaceSourcePlaylists, settings, updateSettings, flush, newId, all: () => db
+  replaceTraktorPlaylists, replaceSourcePlaylists, replacePlaylistsWhere, settings, updateSettings, flush, newId, all: () => db
 };

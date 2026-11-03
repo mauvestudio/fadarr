@@ -16,6 +16,7 @@ const path = require('path');
 const crypto = require('crypto');
 const library = require('../library');
 const store = require('../store');
+const mp3offset = require('../mp3offset');
 const pdb = require('./pdb');
 const anlz = require('./anlz');
 const { analyzeFile, constantGrid } = require('./analyze');
@@ -117,18 +118,46 @@ function deviceCues(cues, shiftS) {
 
 const sha1 = (buf) => crypto.createHash('sha1').update(buf).digest('hex');
 function cachePath(kind, key) { return path.join(CACHE_DIR, kind, `${sha1(key)}.bin`); }
-function readCache(kind, key) { try { return fs.readFileSync(cachePath(kind, key)); } catch (e) { return null; } }
+function readCache(kind, key) {
+  try { const p = cachePath(kind, key); const b = fs.readFileSync(p); try { const now = new Date(); fs.utimesSync(p, now, now); } catch (_) { /* rien */ } return b; } catch (e) { return null; }
+}
 function writeCache(kind, key, buf) { const p = cachePath(kind, key); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, buf); }
 
 /** Fichiers générés de plus de 3 jours : supprimés (les formes d'onde, elles, restent en cache tant que le morceau ne change pas). */
+function cacheFiles(kind) {
+  const d = path.join(CACHE_DIR, kind);
+  let names = []; try { names = fs.readdirSync(d); } catch (e) { return []; }
+  const out = [];
+  for (const n of names) { try { const st = fs.statSync(path.join(d, n)); if (st.isFile()) out.push({ kind, path: path.join(d, n), size: st.size, mtime: st.mtimeMs }); } catch (e) { /* disparu */ } }
+  return out;
+}
+
+/** Une préparation de clé en cours (ou prête depuis moins d'une heure) : ses fichiers générés doivent rester là. */
+const busy = () => [...jobs.values()].some((j) => j.phase === 'prepare' || (j.phase === 'ready' && Date.now() - j.startedAt < 3600 * 1000));
+
+/** Taille du cache : formes d'onde des morceaux (« columns ») et fichiers préparés pour la clé (« gen »). */
+function cacheInfo() {
+  const parts = {};
+  for (const kind of ['columns', 'gen']) { const f = cacheFiles(kind); parts[kind] = { files: f.length, bytes: f.reduce((a, x) => a + x.size, 0) }; }
+  return { bytes: parts.columns.bytes + parts.gen.bytes, files: parts.columns.files + parts.gen.files, parts, maxMb: Number(store.settings().cacheMaxMb) || 0, busy: busy() };
+}
+
+/** Vide le cache (les fichiers d'une préparation en cours sont gardés). */
+function clearCache() {
+  let removed = 0; let bytes = 0;
+  for (const kind of busy() ? ['columns'] : ['columns', 'gen']) for (const f of cacheFiles(kind)) { try { fs.rmSync(f.path, { force: true }); removed++; bytes += f.size; } catch (e) { /* rien */ } }
+  return { ...cacheInfo(), removed, freedBytes: bytes, keptGen: busy() };
+}
+
+/** Ménage : fichiers préparés de plus de 3 jours, puis les plus anciens jusqu'à repasser sous la taille maximale (réglages). */
 function cleanCache() {
-  try {
-    const d = path.join(CACHE_DIR, 'gen');
-    for (const sub of fs.readdirSync(d)) {
-      const f = path.join(d, sub);
-      if (Date.now() - fs.statSync(f).mtimeMs > 3 * 86400000) fs.rmSync(f, { force: true });
-    }
-  } catch (e) { /* pas encore de cache */ }
+  const keepGen = busy();
+  for (const f of cacheFiles('gen')) if (!keepGen && Date.now() - f.mtime > 3 * 86400000) { try { fs.rmSync(f.path, { force: true }); } catch (e) { /* rien */ } }
+  const maxBytes = (Number(store.settings().cacheMaxMb) || 0) * 1024 * 1024;
+  if (!maxBytes) return;
+  const all = [...cacheFiles('columns'), ...(keepGen ? [] : cacheFiles('gen'))].sort((a, b) => a.mtime - b.mtime);
+  let total = cacheInfo().bytes;
+  for (const f of all) { if (total <= maxBytes) break; try { fs.rmSync(f.path, { force: true }); total -= f.size; } catch (e) { /* rien */ } }
 }
 
 /** Colonnes de forme d'onde d'un fichier (mises en cache tant que le fichier ne change pas). */
@@ -201,7 +230,6 @@ function start(playlistIds, { deviceName = '', previous = null } = {}) {
 
 async function prepare(job, playlistIds, deviceName, previous) {
   const settings = store.settings();
-  const offsetS = (settings.mp3OffsetMs || 0) / 1000;
   const wanted = playlistIds.map((id) => store.playlist(id)).filter((p) => p && Array.isArray(p.tracks));
   if (!wanted.length) throw new Error('Choisis au moins une playlist.');
   const { nodes, lists } = playlistTree(wanted);
@@ -245,7 +273,7 @@ async function prepare(job, playlistIds, deviceName, previous) {
     const tech = await techInfo(abs);
     const duration = e.duration || tech.duration || 0;
     const bpm = info.bpm || e.bpm || null;
-    const shift = /\.mp3$/i.test(rel) ? offsetS : 0;
+    const shift = mp3offset.deviceShift(abs, settings); // MP3 : fadarr (ffmpeg) -> position CDJ, selon l'encodeur
     const gridStart = Number.isFinite(info.gridStart) ? info.gridStart : null;
     if (!bpm) report.noBpm.push(e.artist && e.title ? `${e.artist} - ${e.title}` : rel); else if (gridStart === null) report.noGrid++;
     const cues = deviceCues(info.cues, shift);
@@ -321,4 +349,4 @@ function source(kind, key) {
   return null;
 }
 
-module.exports = { start, status, source, MANIFEST_PATH, _internals: { musicalKey, fatFileName, dirName, colorId, deviceCues, playlistTree, prepare } };
+module.exports = { start, status, source, MANIFEST_PATH, cacheInfo, clearCache, cleanCache, _internals: { musicalKey, fatFileName, dirName, colorId, deviceCues, playlistTree, prepare } };

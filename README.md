@@ -37,8 +37,11 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
   analysis files (beat grid, hot cues and memory cues with colours, colour waveforms) for CDJ-2000NXS2, CDJ-3000 and XDJ players.
   Smart sync: only what changed since the last export is rewritten. Needs Chrome/Edge over https (e.g. `tailscale serve`) or localhost.
   Ported from [rbxport](https://github.com/chrisle/rbxport); test the stick on a real player before a gig.
+- **Import a CDJ USB stick** — read a stick made by Rekordbox (or fadarr) straight from the browser: playlists and folders,
+  hot cues, memory cues and loops (colours, names), beat grid, key, track colour and rating. MP3 timings are corrected per file
+  for their encoder (LAME 50 ms, ffmpeg 25 ms — measured on a real stick), on import and on export.
 - **Audio analysis, with Mixxx's algorithms** — *Analyse* in the list toolbar detects BPM and beat grid (constant tempo,
-  rounded like Mixxx), key, loudness (LUFS, EBU R128) and where the music starts, on the server; a track loaded on a deck
+  rounded like Mixxx, plus a kick-drum phase check: 87 % of grids match Rekordbox's on a test stick, up from 67 %), key, loudness (LUFS, EBU R128) and where the music starts, on the server; a track loaded on a deck
   is analysed on the spot. It only fills what is missing: a grid imported from Traktor / Rekordbox or set by hand is never replaced.
   **Loudness matching** (Settings) brings every analysed track to the same level on the decks and in the preview.
 - **Safe by design** — the music folder is mounted read-only: fadarr never modifies an audio file. Everything it knows lives in `data/fadarr.json`.

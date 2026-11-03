@@ -665,3 +665,4 @@ dialog { border-radius: 4px; }
 /* progression de l'écriture sur clé */
 .usb-bar { height: 8px; background: #262626; border-radius: 2px; overflow: hidden; }
 .usb-bar i { display: block; height: 100%; background: var(--lime, #c6e24a); transition: width .3s ease; }
+.modal-body .cache-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }

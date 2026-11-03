@@ -238,6 +238,35 @@ double adjustPhase(double first, double bpm, double sr, const std::vector<double
 
 constexpr float kSilence = 0.001f; // -60 dB (analyzersilence.cpp)
 
+// ---------- ajout fadarr : la grille sur la grosse caisse, pas sur le contretemps ----------
+// Le détecteur qm-dsp accroche parfois les charlestons du contretemps (temps juste, grille décalée d'un demi-temps ;
+// ~30 % des morceaux sur une clé de test comparée à ses grilles Rekordbox). On compare la montée d'énergie dans les
+// graves (< 150 Hz) sur les temps et un demi-temps plus loin, et on garde la plus forte.
+constexpr int kLowBlock = 128; // ~2,9 ms à 44,1 kHz
+
+double lowFluxAround(const std::vector<float>& flux, double sr, double tSec, double winSec) {
+    const double blocksPerSec = sr / kLowBlock;
+    long a = (long)std::floor((tSec - winSec) * blocksPerSec);
+    long b = (long)std::ceil((tSec + winSec) * blocksPerSec);
+    if (a < 0) a = 0;
+    if (b >= (long)flux.size()) b = (long)flux.size() - 1;
+    double m = 0;
+    for (long i = a; i <= b; ++i) m = std::max(m, (double)flux[i]);
+    return m;
+}
+
+// Renvoie 0 (garder) ou 0,5 (décaler d'un demi-temps), d'après la somme des montées de graves.
+double kickPhase(const std::vector<float>& flux, double sr, double firstBeatSec, double bpm, double durSec, double* ratio) {
+    const double beat = 60.0 / bpm;
+    double on = 0, off = 0;
+    for (double t = firstBeatSec; t < durSec; t += beat) {
+        on += lowFluxAround(flux, sr, t, 0.015);
+        off += lowFluxAround(flux, sr, t + beat / 2, 0.015);
+    }
+    if (ratio) *ratio = on > 0 ? off / on : 0;
+    return off > on * 1.15 ? 0.5 : 0.0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -284,12 +313,25 @@ int main(int argc, char** argv) {
     });
 
     // --- lecture ---
+    // graves pour le contrôle de phase (ajout fadarr) : passe-bas à deux pôles ~150 Hz, énergie par bloc de 128 trames
+    std::vector<float> lowEnergy;
+    double lp1 = 0, lp2 = 0, blockSum = 0;
+    int blockFill = 0;
+    const double lpc = std::exp(-2.0 * M_PI * 150.0 / sr);
+
     const size_t CH = 4096;
     std::vector<float> in(CH * 2);
     double total = 0;
     double firstSound = -1, lastSound = -1;
     size_t got;
     while ((got = std::fread(in.data(), sizeof(float) * 2, CH, stdin)) > 0) {
+        for (size_t f = 0; f < got; ++f) {
+            const double x = 0.5 * (in[f * 2] + in[f * 2 + 1]);
+            lp1 = x * (1 - lpc) + lp1 * lpc;
+            lp2 = lp1 * (1 - lpc) + lp2 * lpc;
+            blockSum += lp2 * lp2;
+            if (++blockFill == kLowBlock) { lowEnergy.push_back((float)blockSum); blockSum = 0; blockFill = 0; }
+        }
         for (size_t i = 0; i < got * 2; ++i) {
             if (std::fabs(in[i]) >= kSilence) {
                 if (firstSound < 0) firstSound = total + (double)(i / 2);
@@ -324,6 +366,13 @@ int main(int argc, char** argv) {
             if (bpm > 0) firstBeat = adjustPhase(firstBeat, bpm, sr, beats);
         }
     }
+    double phaseRatio = 0, shifted = 0;
+    if (bpm > 0 && lowEnergy.size() > 8) {
+        std::vector<float> flux(lowEnergy.size(), 0.f);
+        for (size_t i = 1; i < lowEnergy.size(); ++i) flux[i] = std::max(0.f, std::sqrt(lowEnergy[i]) - std::sqrt(lowEnergy[i - 1]));
+        shifted = kickPhase(flux, sr, firstBeat / sr, bpm, total / sr, &phaseRatio);
+        if (shifted > 0) firstBeat += shifted * 60.0 * sr / bpm;
+    }
 
     // --- tonalité principale (keyutils.cpp calculateGlobalKey) ---
     int key = 0;
@@ -345,8 +394,8 @@ int main(int argc, char** argv) {
     }
 
     std::printf("{\"durationSec\":%.4f,\"bpm\":%.4f,\"firstBeatSec\":%.5f,\"beats\":%zu,\"key\":%d,"
-                "\"firstSoundSec\":%.5f,\"lastSoundSec\":%.5f}\n",
+                "\"firstSoundSec\":%.5f,\"lastSoundSec\":%.5f,\"halfShift\":%d,\"phaseRatio\":%.3f}\n",
             total / sr, bpm, bpm > 0 ? firstBeat / sr : 0.0, beats.size(), key,
-            firstSound < 0 ? 0.0 : firstSound / sr, lastSound < 0 ? 0.0 : lastSound / sr);
+            firstSound < 0 ? 0.0 : firstSound / sr, lastSound < 0 ? 0.0 : lastSound / sr, shifted > 0 ? 1 : 0, phaseRatio);
     return 0;
 }

@@ -49,7 +49,8 @@ app.use((req, res, next) => {
   return next();
 });
 
-app.use(express.json({ limit: '2mb' }));
+const jsonSmall = express.json({ limit: '2mb' });
+app.use((req, res, next) => (req.path === '/api/import/usb' ? next() : jsonSmall(req, res, next))); // la clé USB a sa limite à elle
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: 0 }));
 
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
@@ -252,6 +253,14 @@ app.post('/api/import/rekordbox', express.text({ type: '*/*', limit: '200mb' }),
   res.json(report);
 }));
 
+app.get('/api/cache', (req, res) => res.json(usb.cacheInfo()));
+app.delete('/api/cache', (req, res) => res.json(usb.clearCache()));
+
+app.post('/api/import/usb', express.json({ limit: '60mb' }), wrap(async (req, res) => {
+  if (!library.allPaths().length) throw httpError(400, "Analyse d'abord ta bibliothèque (bouton « Analyser le NAS ») : l'import retrouve les morceaux du NAS d'après la clé.");
+  res.json(require('./rekordboxImport').importUsb(req.body));
+}));
+
 app.post('/api/export/traktor', wrap(async (req, res) => {
   const { xml, report } = require('./traktorExport').exportNml();
   console.log(`📤 Export Traktor : ${report.playlists} playlist(s), ${report.tracks} morceau(x), ${report.skippedCount} ignoré(s).`);
@@ -268,6 +277,7 @@ app.post('/api/export/traktor', wrap(async (req, res) => {
 // ---------------------------------------------------------------------------
 
 const usb = require('./usb/export');
+setTimeout(() => { try { usb.cleanCache(); } catch (e) { /* rien */ } }, 5000); // ménage du cache au démarrage
 
 app.post('/api/usb/prepare', wrap(async (req, res) => {
   needNas();
@@ -312,7 +322,7 @@ app.post('/api/export/rekordbox', wrap(async (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.get('/api/settings', (req, res) => res.json(store.settings()));
-app.put('/api/settings', (req, res) => res.json(store.updateSettings(req.body || {})));
+app.put('/api/settings', (req, res) => { const s = store.updateSettings(req.body || {}); if (req.body && req.body.cacheMaxMb !== undefined) usb.cleanCache(); res.json(s); });
 
 app.use('/api', (req, res) => res.status(404).json({ error: require('./i18n').tr(req, 'Route inconnue') }));
 app.get(/.*/, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));

@@ -15,6 +15,28 @@
 
   const DICT = {
     en: {
+      // ---------- cache ----------
+      'Cache': 'Cache', 'Vider': 'Clear',
+      'Formes d’onde calculées pour la clé USB et fichiers préparés : tout se recrée au besoin (le prochain export de clé sera juste plus long).': 'Waveforms computed for the USB stick and prepared files: everything is rebuilt when needed (the next stick export just takes longer).',
+      'Taille maximale du cache (Mo)': 'Maximum cache size (MB)',
+      'Au-delà, les fichiers les plus anciens sont effacés (au démarrage et après chaque export de clé). 0 = sans limite.': 'Above this, the oldest files are deleted (at startup and after each stick export). 0 = no limit.',
+      '{total} — formes d’onde {cols}, clé {gen}': '{total} — waveforms {cols}, stick {gen}',
+      'Cache vidé : {n} libérés.': 'Cache cleared: {n} freed.',
+      '(fichiers de la clé en cours gardés)': '(files of the stick in progress kept)',
+      'Correction supplémentaire pour les MP3 (ms)': 'Extra MP3 correction (ms)',
+      'fadarr recale déjà chaque MP3 selon son encodeur (LAME : 50 ms, ffmpeg : 25 ms, mesuré sur ta clé) pour Rekordbox et les CDJ. Laisse 0, sauf si une platine montre encore un écart. Les WAV et AIFF ne sont pas concernés.': 'fadarr already corrects each MP3 for its encoder (LAME: 50 ms, ffmpeg: 25 ms, measured on your stick) for Rekordbox and CDJs. Keep 0 unless a player still shows an offset. WAV and AIFF are not affected.',
+      // ---------- lecture de clé USB / reading a USB stick ----------
+      'Importer clé USB': 'Import USB stick',
+      'Lire une clé USB préparée pour CDJ (par Rekordbox ou fadarr) : playlists, cues, grilles, couleurs et notes': 'Read a CDJ USB stick (made by Rekordbox or fadarr): playlists, cues, grids, colours and ratings',
+      'Lecture de clé indisponible ici': 'Reading a stick is not available here',
+      'Pour lire une clé, le navigateur doit être Chrome, Edge ou Brave, et fadarr ouvert en connexion sécurisée (https) ou sur cet ordinateur (localhost).': 'To read a stick, use Chrome, Edge or Brave, with fadarr opened over https or on this computer (localhost).',
+      'Pas de PIONEER/rekordbox/export.pdb : choisis la racine d’une clé préparée pour CDJ.': 'No PIONEER/rekordbox/export.pdb: pick the root of a CDJ USB stick.',
+      'Lecture de la clé : {done} / {total}…': 'Reading stick: {done} / {total}…',
+      'Import de la clé…': 'Importing stick…',
+      'Clé {name} importée': 'Stick {name} imported',
+      '{n} sans analyse sur la clé': '{n} without analysis on the stick',
+      'Les playlists sont dans Rekordbox › Clé {name}. Les MP3 sont recalés automatiquement selon leur encodeur.': 'Playlists are under Rekordbox › Clé {name}. MP3 timings are corrected automatically for their encoder.',
+      '{n} morceaux de la clé introuvables sur le NAS': '{n} tracks from the stick not found on the NAS',
       // ---------- analyse audio / audio analysis ----------
       'Analyser': 'Analyse',
       'Calcule BPM, grille, tonalité et volume des morceaux de cette liste qui ne le sont pas encore (Maj+clic : tout recalculer). Une grille importée ou posée à la main n’est jamais remplacée.': 'Detects BPM, beat grid, key and loudness for the tracks in this list that are not analysed yet (Shift+click: redo all). An imported or hand-set grid is never replaced.',
