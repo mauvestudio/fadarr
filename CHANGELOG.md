@@ -3,6 +3,22 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.10.0] — 2026-11-03
+### Ajouté
+- **Clé USB pour CDJ, sans Rekordbox (expérimental)** — Exporter › « Clé USB pour CDJ » : fadarr écrit lui-même la clé, lisible par les CDJ-2000NXS2 (priorité), CDJ-3000 et XDJ :
+  - musique dans `Contents/<Artiste>/<Album>/`, noms compatibles FAT32 ;
+  - base des platines `PIONEER/rekordbox/export.pdb` (morceaux, artistes, albums, genres, tonalités, couleurs, notes, playlists et dossiers) ;
+  - analyses `ANLZ0000.DAT/.EXT/.2EX` : grille de tempo, hot cues et memory cues (couleurs, noms, loops), formes d'onde (aperçu, détail, couleurs NXS2 et 3 bandes CDJ-3000) ;
+  - **synchro intelligente** : manifeste sur la clé (`PIONEER/fadarr/manifest.json`) ; seuls les fichiers changés sont réécrits, ceux que fadarr avait mis et qui ne sont plus choisis sont retirés, chaque fichier écrit est vérifié ;
+  - analyse audio en cache sur le serveur ; identifiants de morceaux stables d'un export à l'autre.
+  Le serveur prépare, le navigateur écrit sur la clé branchée sur l'ordinateur : Chrome / Edge en https (ex. `tailscale serve`) ou en localhost. Clé en FAT32 obligatoire pour la NXS2.
+  Testé octet par octet contre les écrivains de rbxport ; **pas encore testé sur une vraie platine** : à vérifier avant un set.
+### Licence
+- **fadarr passe en GPL-2.0-ou-ultérieure** : l'export USB est un portage en JavaScript d'une partie de [rbxport](https://github.com/chrisle/rbxport) (GPL-2.0-or-later, © Chris Le et contributeurs). Voir `NOTICE.md`. Les versions jusqu'à la 0.9.1 restent sous MIT.
+### Modifié
+- Le bouton « Exporter vers Rekordbox » devient « Exporter » (Rekordbox XML, Traktor ou clé USB).
+- *EN: experimental direct USB export for CDJs (CDJ-2000NXS2 first, CDJ-3000, XDJ): audio, export.pdb, ANLZ grid/cues/waveforms, smart sync with a manifest and verification; byte-identical to rbxport's writers in tests, not yet tested on hardware. fadarr is now GPL-2.0-or-later (USB export ported from rbxport).*
+
 ## [0.9.1] — 2026-11-03
 ### Sécurité
 - **Dépendances à jour, 0 faille connue** (`npm audit`) : `music-metadata` 7 → 12 (corrige plusieurs failles de lecture de fichiers piégés : boucles infinies et allocations mémoire démesurées sur des tags ASF / MP4 / APE / ID3 / DSF malformés — utile quand la bibliothèque contient des fichiers venus d'inconnus, ex. Soulseek), `body-parser` (déni de service sur un corps compressé).
@@ -118,6 +134,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.10.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.10.0
 [0.9.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.1
 [0.9.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.0
 [0.8.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.8.1

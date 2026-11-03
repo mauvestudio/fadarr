@@ -240,6 +240,36 @@ app.post('/api/export/traktor', wrap(async (req, res) => {
   res.send(xml);
 }));
 
+// ---------------------------------------------------------------------------
+// Clé USB pour CDJ (export.pdb + analyses) : le serveur prépare, le navigateur écrit sur la clé
+// ---------------------------------------------------------------------------
+
+const usb = require('./usb/export');
+
+app.post('/api/usb/prepare', wrap(async (req, res) => {
+  needNas();
+  const b = req.body || {};
+  const ids = Array.isArray(b.playlists) ? b.playlists.map(String) : [];
+  if (!ids.length) throw httpError(400, 'Choisis au moins une playlist.');
+  res.json({ id: usb.start(ids, { deviceName: String(b.deviceName || ''), previous: b.previous && typeof b.previous === 'object' ? b.previous : null }) });
+}));
+
+app.get('/api/usb/job/:id', (req, res) => {
+  const s = usb.status(String(req.params.id));
+  if (!s) return res.status(404).json({ error: require('./i18n').tr(req, 'Préparation introuvable (le serveur a peut-être redémarré).') });
+  return res.json(s);
+});
+
+app.get('/api/usb/file', wrap(async (req, res) => {
+  const kind = req.query.kind === 'audio' ? 'audio' : 'gen';
+  if (kind === 'audio') needNas();
+  const src = usb.source(kind, String(req.query.key || ''));
+  if (!src) throw httpError(404, 'Fichier introuvable.');
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(src, { dotfiles: 'allow' });
+}));
+
 app.post('/api/export/rekordbox', wrap(async (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
   const rep = require('./rekordbox').exportXml(ids);

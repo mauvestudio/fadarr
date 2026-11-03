@@ -33,6 +33,10 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
   then by artist + title; unmatched tracks are listed. Re-importing never overwrites cues you edited in fadarr.
 - **Fast with big libraries** — the track list is virtualised (only visible rows are drawn), so thousands of tracks scroll smoothly.
 - **Rekordbox export** — `rekordbox.xml` with playlists, cues (with colours), loops, BPM and grid; Rekordbox then builds the USB stick.
+- **USB stick for CDJs, without Rekordbox (experimental)** — fadarr writes the stick itself: audio, the players' database (`export.pdb`) and
+  analysis files (beat grid, hot cues and memory cues with colours, colour waveforms) for CDJ-2000NXS2, CDJ-3000 and XDJ players.
+  Smart sync: only what changed since the last export is rewritten. Needs Chrome/Edge over https (e.g. `tailscale serve`) or localhost.
+  Ported from [rbxport](https://github.com/chrisle/rbxport); test the stick on a real player before a gig.
 - **Safe by design** — the music folder is mounted read-only: fadarr never modifies an audio file. Everything it knows lives in `data/fadarr.json`.
 - **NAS switch** — disconnect the NAS from the header (library and playlists stay browsable; loaded decks keep playing).
 - **French / English** — and ready for more languages (see below).
@@ -97,4 +101,4 @@ Beat-grid editing · MIDI controllers · waveform cache / mini-waveforms in the 
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Not affiliated with Native Instruments or AlphaTheta/Pioneer DJ; Traktor and Rekordbox are trademarks of their owners.
+GPL-2.0-or-later — see [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md) (the USB export is a port of parts of [rbxport](https://github.com/chrisle/rbxport); fadarr was MIT up to 0.9.1). Not affiliated with Native Instruments or AlphaTheta/Pioneer DJ; Traktor and Rekordbox are trademarks of their owners.

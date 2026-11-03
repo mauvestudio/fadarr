@@ -1925,14 +1925,23 @@
       <div class="exp-fmt">
         <label><input type="radio" name="e-fmt" value="xml" checked> ${t('Rekordbox XML (platines via Rekordbox)')}</label>
         <label><input type="radio" name="e-fmt" value="nml"> ${t('Traktor (collection.nml, ré-importable)')}</label>
-        <label class="muted" title="${t('Bientôt : écriture directe de la clé USB, sans passer par Rekordbox.')}"><input type="radio" name="e-fmt" value="usb" disabled> ${t('Clé USB directe pour CDJ (bientôt)')}</label>
+        <label><input type="radio" name="e-fmt" value="usb"> ${t('Clé USB pour CDJ, sans Rekordbox (expérimental)')}</label>
+      </div>
+      <div id="e-lists">
+        <div class="small muted">${t('Playlists à exporter :')}</div>
+        <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'fadarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
+      </div>
+      <div id="e-usb" hidden>
+        <label>${t('Nom de la clé (affiché sur la platine)')}
+          <input type="text" id="e-dev" maxlength="32" spellcheck="false" value="${esc((() => { try { return localStorage.getItem('fadarr-usb-name') || 'FADARR'; } catch (e) { return 'FADARR'; } })())}">
+        </label>
+        <div class="small muted">${t('fadarr écrit lui-même la clé : musique, base des platines (export.pdb) et analyses (grille, hot cues et memory cues, formes d’onde en couleurs), lisibles par les CDJ-2000NXS2, CDJ-3000 et XDJ. Choisis la RACINE de la clé, formatée en FAT32 (une CDJ-2000NXS2 ne lit pas l’exFAT ; la CDJ-3000 oui). Seul ce qui a changé depuis le dernier export est réécrit.')}</div>
+        <div class="small muted">${t('⚠️ Fonction expérimentale : teste la clé sur une vraie platine avant un set, et garde l’export Rekordbox en secours.')}</div>
       </div>
       <div id="e-rb">
         <label>${t('Chemin du dossier musique sur ton Mac')}
           <input type="text" id="e-mac" value="${esc(s.macPrefix)}" placeholder="/Volumes/music/Electronic" spellcheck="false">
         </label>
-        <div class="small muted">${t('Playlists à exporter :')}</div>
-        <div class="checks">${lists.map((p) => `<label><input type="checkbox" value="${esc(p.id)}" ${p.id === cur || (!cur && p.source === 'fadarr') ? 'checked' : ''}> ${esc(srcName(p))} <span class="muted small">(${p.count})</span></label>`).join('')}</div>
         <div class="small muted">${t("Dans Rekordbox : Préférences > Avancé > Base de données > « rekordbox xml » : choisis le fichier téléchargé. Puis dans l'arborescence, « rekordbox xml » > clic droit sur la playlist > Importer la playlist. Les cues et loops suivent.")}</div>
       </div>
       <div id="e-nml" hidden>
@@ -1944,13 +1953,23 @@
         const fmt = ($('input[name="e-fmt"]:checked', root) || {}).value || 'xml';
         $('#e-rb', root).hidden = fmt !== 'xml';
         $('#e-nml', root).hidden = fmt !== 'nml';
-        $('#e-go', root).textContent = fmt === 'nml' ? t('Télécharger collection.nml') : t('Télécharger rekordbox.xml');
+        $('#e-usb', root).hidden = fmt !== 'usb';
+        $('#e-lists', root).hidden = fmt === 'nml';
+        $('#e-go', root).textContent = fmt === 'nml' ? t('Télécharger collection.nml') : fmt === 'usb' ? t('Choisir la clé et l’écrire…') : t('Télécharger rekordbox.xml');
       };
       $$('input[name="e-fmt"]', root).forEach((r) => r.addEventListener('change', syncFmt));
       syncFmt();
       $('#e-go', root).addEventListener('click', async (ev) => {
         ev.preventDefault();
         if (($('input[name="e-fmt"]:checked', root) || {}).value === 'nml') { exportTraktor().catch((e) => toast(e.message, 'error')); return; }
+        if (($('input[name="e-fmt"]:checked', root) || {}).value === 'usb') {
+          const ids = $$('.checks input:checked', root).map((i) => i.value);
+          const name = $('#e-dev', root).value.trim() || 'FADARR';
+          try { localStorage.setItem('fadarr-usb-name', name); } catch (e) { /* rien */ }
+          if (!ids.length) { toast(t('Coche au moins une playlist.'), 'error'); return; }
+          writeUsb(ids, name).catch((e) => { if (e && e.name === 'AbortError') return; toast(e.message, 'error'); });
+          return;
+        }
         try {
           const mac = $('#e-mac', root).value.trim();
           if (mac !== s.macPrefix) await api('PUT', '/api/settings', { macPrefix: mac });
@@ -1980,6 +1999,92 @@
         } catch (e) { toast(e.message, 'error'); }
       });
     });
+  }
+
+  // ===========================================================================
+  // CLÉ USB POUR CDJ : le serveur prépare (base + analyses), le navigateur écrit sur la clé branchée sur CET ordinateur
+  // ===========================================================================
+  async function writeUsb(ids, deviceName) {
+    if (!window.showDirectoryPicker) {
+      modal(`<h2>${t('Écriture sur clé indisponible ici')}</h2>
+        <p>${t('Pour écrire sur une clé, le navigateur doit être Chrome, Edge ou Brave, et fadarr ouvert en connexion sécurisée (https) ou sur cet ordinateur (localhost).')}</p>
+        <ul class="report">
+          <li>${t('Le plus simple : ouvre fadarr via Tailscale en https (sur l’Unraid : « tailscale serve --bg 3010 », puis l’adresse https://…ts.net qu’il affiche).')}</li>
+          <li>${t('Ou dans Chrome : chrome://flags, « Insecure origins treated as secure », ajoute l’adresse de fadarr (ex. http://192.168.1.70:3010), puis relance Chrome.')}</li>
+        </ul>
+        <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
+      return;
+    }
+    const dir = await window.showDirectoryPicker({ id: 'fadarr-usb', mode: 'readwrite' });
+    const dirs = new Map([['', dir]]);
+    const dirOf = async (rel, create) => {
+      const parts = rel.split('/').slice(0, -1); let key = ''; let h = dir;
+      for (const p of parts) { key = key ? `${key}/${p}` : p; if (!dirs.has(key)) dirs.set(key, await h.getDirectoryHandle(p, { create })); h = dirs.get(key); }
+      return h;
+    };
+    const fileOf = async (rel, create) => (await dirOf(rel, create)).getFileHandle(rel.split('/').pop(), { create });
+    // Manifeste du dernier export fadarr sur cette clé : seuls les fichiers encore présents comptent comme « déjà là »
+    let previous = null;
+    try {
+      const m = JSON.parse(await (await (await fileOf('PIONEER/fadarr/manifest.json', false)).getFile()).text());
+      if (m && m.files) {
+        const kept = {};
+        for (const [p, h] of Object.entries(m.files)) { try { await fileOf(p, false); kept[p] = h; } catch (e) { /* fichier disparu : à réécrire */ } }
+        previous = { ...m, files: kept };
+      }
+    } catch (e) { /* clé sans export fadarr */ }
+    // Une clé d'un autre logiciel (rekordbox) : on prévient avant de remplacer sa base
+    if (!previous) {
+      let foreign = false; try { await fileOf('PIONEER/rekordbox/export.pdb', false); foreign = true; } catch (e) { /* rien */ }
+      if (foreign && !confirm(t('Cette clé contient déjà une bibliothèque (faite par Rekordbox ?). fadarr va la remplacer par la sienne : les playlists Rekordbox de cette clé ne seront plus visibles sur les platines (leurs fichiers audio restent). Continuer ?'))) return;
+    }
+    const box = () => $('#modal-body');
+    const paint = (title, line, pct) => { const b = box(); if (!b) return; b.innerHTML = `<h2>${esc(title)}</h2><p class="small">${esc(line || '')}</p><div class="usb-bar"><i style="width:${Math.max(0, Math.min(100, pct || 0)).toFixed(1)}%"></i></div><div class="row"><button class="btn" value="cancel" id="usb-stop">${t('Arrêter')}</button></div>`; };
+    const dlg = $('#modal'); if (!dlg.open) dlg.showModal();
+    let stopped = false;
+    dlg.addEventListener('close', () => { stopped = true; }, { once: true });
+    paint(t('Préparation de la clé…'), t('Analyse des morceaux (formes d’onde, grille, cues)…'), 0);
+    const { id } = await api('POST', '/api/usb/prepare', { playlists: ids, deviceName, previous });
+    let st;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 600));
+      if (stopped) return;
+      st = await api('GET', `/api/usb/job/${id}`);
+      if (st.error) throw new Error(st.error);
+      if (st.phase === 'ready') break;
+      paint(t('Préparation de la clé…'), `${st.done}/${st.total} · ${(st.current || '').split('/').pop()}`, st.total ? (st.done / st.total) * 100 : 0);
+    }
+    const plan = st.result;
+    const total = plan.bytes || 1; let written = 0; const errors = [];
+    const t0 = Date.now();
+    for (const [i, f] of plan.files.entries()) {
+      if (stopped) return;
+      const mbs = written / 1e6 / Math.max(0.5, (Date.now() - t0) / 1000);
+      paint(t('Écriture sur la clé…'), `${i + 1}/${plan.files.length} · ${f.path.split('/').pop()} · ${(written / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} Mo · ${mbs.toFixed(1)} Mo/s`, (written / total) * 100);
+      try {
+        const res = await fetch(`/api/usb/file?kind=${f.kind}&key=${encodeURIComponent(f.kind === 'audio' ? f.rel : f.hash)}`, { headers: { 'X-Lang': window.I18N.lang } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const w = await (await fileOf(f.path, true)).createWritable();
+        await res.body.pipeTo(w);
+        const size = (await (await fileOf(f.path, false)).getFile()).size;
+        if (size !== f.size) throw new Error(t('taille {a} au lieu de {b}', { a: size, b: f.size }));
+      } catch (e) { errors.push(`${f.path} : ${e.message}`); if (f.path.endsWith('export.pdb')) break; }
+      written += f.size;
+    }
+    let removed = 0;
+    for (const p of plan.toDelete || []) { try { await (await dirOf(p, false)).removeEntry(p.split('/').pop()); removed++; } catch (e) { /* déjà absent */ } }
+    const r = plan.report;
+    const warn = [];
+    if (errors.length) warn.push(`<li class="bad">${t('{n} fichiers n’ont pas pu être écrits :', { n: errors.length })}<br><span class="small">${errors.slice(0, 8).map(esc).join('<br>')}</span></li>`);
+    if (r.noBpm.length) warn.push(`<li class="bad">${t('{n} morceaux sans BPM : ni grille ni SYNC sur les platines. Charge-les dans fadarr et clique sur le BPM pour le poser.', { n: r.noBpm.length })}</li>`);
+    if (r.noGrid) warn.push(`<li>${t('{n} morceaux ont un BPM mais pas de début de grille précis : grille posée à 0, à vérifier.', { n: r.noGrid })}</li>`);
+    if (r.missing.length) warn.push(`<li>${t('{n} morceaux absents du NAS ont été ignorés.', { n: r.missing.length })}</li>`);
+    for (const w of r.warnings || []) warn.push(`<li>${esc(w)}</li>`);
+    modal(`<h2>${errors.length ? t('Clé écrite avec des erreurs') : t('Clé prête ✔')}</h2>
+      <p>${t('{n} morceaux dans {p} playlists — {c} avec cues. {w} fichiers écrits ({mb} Mo), {u} déjà à jour, {d} retirés.', { n: `<b>${r.tracks}</b>`, p: plan.playlists, c: r.withCues, w: plan.files.length - errors.length, mb: (written / 1e6).toFixed(0), u: plan.unchanged, d: removed })}</p>
+      ${warn.length ? `<ul class="report">${warn.join('')}</ul>` : `<p class="ok-line">${t('Tous les morceaux ont un BPM et une grille. ✔')}</p>`}
+      <div class="small muted">${t('Éjecte la clé proprement avant de la débrancher. Avant un set : vérifie sur une platine que les playlists, la grille et les hot cues apparaissent.')}</div>
+      <div class="row"><button class="btn accent" value="ok">OK</button></div>`);
   }
 
   /** Export Traktor : génère et télécharge un collection.nml ré-importable. */

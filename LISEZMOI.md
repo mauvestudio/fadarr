@@ -33,6 +33,10 @@ fadarr est une petite appli web auto-hébergée (Node.js, sans framework ni comp
   tolérés), puis par artiste + titre ; les introuvables sont listés. Un nouvel import n'écrase jamais les cues modifiés dans fadarr.
 - **Fluide avec les grosses bibliothèques** : la liste est virtualisée (seules les lignes visibles sont dessinées), des milliers de morceaux défilent sans ralentir.
 - **Export Rekordbox** : `rekordbox.xml` avec playlists, cues (et leurs couleurs), loops, BPM et grille ; Rekordbox fait ensuite la clé.
+- **Clé USB pour CDJ, sans Rekordbox (expérimental)** : fadarr écrit lui-même la clé : musique, base des platines (`export.pdb`) et analyses
+  (grille, hot cues et memory cues avec couleurs, formes d'onde en couleurs) pour CDJ-2000NXS2, CDJ-3000 et XDJ.
+  Synchro intelligente : seul ce qui a changé depuis le dernier export est réécrit. Nécessite Chrome/Edge en https (ex. `tailscale serve`) ou en localhost.
+  Porté de [rbxport](https://github.com/chrisle/rbxport) ; teste la clé sur une vraie platine avant un set.
 - **Sans risque** : le dossier musique est monté en lecture seule, fadarr ne modifie jamais un fichier audio. Tout ce qu'il sait est dans `data/fadarr.json`.
 - **Bouton NAS** : déconnecter le NAS depuis l'en-tête (bibliothèque et playlists restent consultables, les decks chargés continuent de jouer).
 - **Français / anglais**, et prêt pour d'autres langues.
@@ -83,4 +87,4 @@ Pour ajouter une langue : copier le bloc `en`, traduire les valeurs et ajouter l
 
 ## Licence
 
-MIT — voir [LICENSE](LICENSE). Sans lien avec Native Instruments ni AlphaTheta/Pioneer DJ ; Traktor et Rekordbox sont des marques de leurs propriétaires.
+GPL-2.0-ou-ultérieure — voir [LICENSE](LICENSE) et [NOTICE.md](NOTICE.md) (l'export USB est un portage d'une partie de [rbxport](https://github.com/chrisle/rbxport) ; fadarr était sous MIT jusqu'à la 0.9.1). Sans lien avec Native Instruments ni AlphaTheta/Pioneer DJ ; Traktor et Rekordbox sont des marques de leurs propriétaires.

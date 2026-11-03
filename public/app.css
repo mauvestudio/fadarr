@@ -659,3 +659,7 @@ dialog { border-radius: 4px; }
   .loopsz .sz[data-a="b:16"], .loopsz .sz[data-a="b:0.5"] { display: none; }
   .browser { grid-template-columns: 240px 1fr; }
 }
+
+/* progression de l'écriture sur clé */
+.usb-bar { height: 8px; background: #262626; border-radius: 2px; overflow: hidden; }
+.usb-bar i { display: block; height: 100%; background: var(--lime, #c6e24a); transition: width .3s ease; }

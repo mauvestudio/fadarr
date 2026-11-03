@@ -15,7 +15,11 @@ const EN = {
   "Ce fichier n'est pas un collection.nml de Traktor (balise NML absente).": 'This is not a Traktor collection.nml file (no NML tag).',
   'Requête interdite (origine externe)': 'Forbidden request (external origin)',
   'Route inconnue': 'Unknown route',
-  'Authentification requise': 'Authentication required'
+  'Authentification requise': 'Authentication required',
+  'Choisis au moins une playlist.': 'Pick at least one playlist.',
+  'Préparation introuvable (le serveur a peut-être redémarré).': 'Preparation not found (the server may have restarted).',
+  'Fichier introuvable.': 'File not found.',
+  'Date invalide pour export.pdb.': 'Invalid date for export.pdb.'
 };
 
 function tr(req, msg) {
