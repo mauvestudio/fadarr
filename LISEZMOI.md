@@ -33,6 +33,11 @@ fadarr est une petite appli web auto-hébergée (Node.js, sans framework ni comp
   tolérés), puis par artiste + titre ; les introuvables sont listés. Un nouvel import n'écrase jamais les cues modifiés dans fadarr.
 - **Fluide avec les grosses bibliothèques** : la liste est virtualisée (seules les lignes visibles sont dessinées), des milliers de morceaux défilent sans ralentir.
 - **Export Rekordbox** : `rekordbox.xml` avec playlists, cues (et leurs couleurs), loops, BPM et grille ; Rekordbox fait ensuite la clé.
+- **Analyse audio, avec les algorithmes de Mixxx** : « Analyser » dans la barre de la liste calcule BPM et grille (tempo
+  constant, arrondi comme Mixxx), tonalité, volume (LUFS, EBU R128) et le début de la musique, sur le serveur ; un morceau
+  chargé dans un deck est analysé tout de suite. Ne remplit que ce qui manque : une grille importée de Traktor / Rekordbox
+  ou posée à la main n'est jamais remplacée. **Volume harmonisé** (Réglages) : tous les morceaux analysés au même niveau
+  dans les decks et la pré-écoute.
 - **Clé USB pour CDJ, sans Rekordbox (expérimental)** : fadarr écrit lui-même la clé : musique, base des platines (`export.pdb`) et analyses
   (grille, hot cues et memory cues avec couleurs, formes d'onde en couleurs) pour CDJ-2000NXS2, CDJ-3000 et XDJ.
   Synchro intelligente : seul ce qui a changé depuis le dernier export est réécrit. Nécessite Chrome/Edge en https (ex. `tailscale serve`) ou en localhost.

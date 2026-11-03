@@ -17,6 +17,20 @@ rbxport's own writers during development.
 
 Because of this, fadarr is distributed under GPL-2.0-or-later (it was MIT up to 0.9.1).
 
+## Mixxx and qm-dsp
+
+fadarr's audio analysis (`analyzer/fadarr-analyze.cpp`, used by `src/analysis.js`) follows the analysers of **Mixxx** —
+<https://github.com/mixxxdj/mixxx> — Copyright (C) the Mixxx Development Team, GPL-2.0-or-later:
+beat detection (`src/analyzer/plugins/analyzerqueenmarybeats.cpp`), constant-tempo grid and BPM rounding
+(`src/track/beatutils.cpp`, `beatfactory.cpp`), key detection (`analyzerqueenmarykey.cpp`, `keyutils.cpp`),
+first / last sound (`src/analyzer/analyzersilence.cpp`) and the mono downmix helper (`buffering_utils.cpp`),
+with the same settings.
+
+It is built on **qm-dsp** (`analyzer/qm-dsp/`, the copy shipped with Mixxx, including its `mixxx-changes.patch`),
+the Queen Mary, University of London DSP library by Chris Cannam, Matthew Davies, Christian Landone, Katy Noland
+and others — GPL-2.0-or-later (see `analyzer/qm-dsp/COPYING`). It includes kissfft (BSD, `ext/kissfft/COPYING`).
+Loudness is measured with ffmpeg's `ebur128` filter (EBU R128).
+
 ## Trademarks
 
 Not affiliated with AlphaTheta / Pioneer DJ or Native Instruments. rekordbox, CDJ, Traktor are trademarks of their owners.

@@ -13,6 +13,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const store = require('./store');
 const library = require('./library');
+const analysis = require('./analysis');
 
 const PORT = Number(process.env.PORT) || 3010;
 const app = express();
@@ -97,8 +98,28 @@ app.get('/api/library', (req, res) => {
 /** Morceau + ce que fadarr en sait (cues, BPM, grille…). */
 function withInfo(e) {
   const info = store.trackInfo(e.path) || {};
-  return { ...e, bpm: info.bpm || e.bpm, key: info.key || e.key, gridStart: info.gridStart ?? null, cueCount: (info.cues || []).length, rating: info.rating || 0, color: info.color || '', traktor: Boolean(info.traktor) };
+  return { ...e, bpm: info.bpm || e.bpm, key: info.key || e.key, gridStart: info.gridStart ?? null, cueCount: (info.cues || []).length, rating: info.rating || 0, color: info.color || '', traktor: Boolean(info.traktor), ...analysis.summary(info) };
 }
+
+// ---------------------------------------------------------------------------
+// Analyse audio (BPM et grille, tonalité, volume, premier son) — algorithmes de Mixxx
+// ---------------------------------------------------------------------------
+
+app.get('/api/analysis', (req, res) => res.json(analysis.status()));
+app.post('/api/analysis', wrap(async (req, res) => {
+  needNas();
+  const paths = Array.isArray(req.body?.paths) ? req.body.paths.slice(0, 100000) : [];
+  const added = analysis.enqueue(paths, { force: Boolean(req.body?.force) });
+  res.json({ added, ...analysis.status() });
+}));
+app.post('/api/analysis/track', wrap(async (req, res) => {
+  needNas();
+  const rel = String(req.body?.path || '');
+  const e = library.entry(rel);
+  if (!e) throw httpError(404, 'Morceau inconnu de la bibliothèque.');
+  await analysis.analyzeNow(rel);
+  res.json(withInfo(e));
+}));
 
 app.get('/api/track', wrap(async (req, res) => {
   const rel = String(req.query.path || '');
@@ -127,7 +148,9 @@ app.put('/api/track/meta', wrap(async (req, res) => {
   if (b.color !== undefined) patch.color = /^#[0-9a-f]{6}$/i.test(String(b.color)) ? String(b.color).toLowerCase() : '';
   if (b.comment !== undefined) patch.comment = String(b.comment).slice(0, 300);
   // valeur posée à la main (Tap, 1er temps, ×2/÷2, édition du BPM) : un ré-import ne l'écrase pas. La détection auto (b.auto) ne bloque rien.
-  if ((b.bpm !== undefined || b.gridStart !== undefined) && !b.auto) patch.edited = true;
+  if ((b.bpm !== undefined || b.gridStart !== undefined) && !b.auto) { patch.edited = true; patch.gridManual = true; patch.gridAuto = false; }
+  if ((b.bpm !== undefined || b.gridStart !== undefined) && b.auto) patch.gridAuto = true;
+  if (b.key !== undefined) patch.keyAuto = false;
   res.json(store.updateTrack(rel, patch));
 }));
 

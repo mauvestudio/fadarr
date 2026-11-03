@@ -3,6 +3,24 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.11.0] — 2026-11-03
+### Ajouté
+- **Analyse audio avec les algorithmes de Mixxx** (`analyzer/`, qm-dsp, GPL-2.0-or-later) :
+  - BPM et grille à tempo constant (détection qm-dsp, puis régions constantes et arrondi du BPM de Mixxx) ;
+  - tonalité (qm-dsp, tonalité la plus longue du morceau) ;
+  - volume moyen et crête (EBU R128, filtre ebur128 de ffmpeg, dans le même décodage) ;
+  - premier et dernier son (-60 dB) : sans memory cue, le deck se cale sur le début de la musique.
+  Bouton **Analyser** dans la barre de la liste (Maj+clic : tout recalculer), file d'attente côté serveur (2 analyses à la fois,
+  `FADARR_ANALYSIS_JOBS`), progression dans la barre d'état ; un morceau chargé dans un deck est analysé tout de suite
+  (sinon détection rapide dans le navigateur, comme avant). Ne remplit que ce qui manque : une grille importée ou posée
+  à la main n'est jamais remplacée ; la tonalité n'est ajoutée qu'aux morceaux qui n'en ont pas. Les grilles détectées
+  partent aussi sur la clé USB.
+- Colonne **LUFS** (triable) dans la liste.
+- **Volume harmonisé** (Réglages, activé par défaut, niveau visé -9 LUFS) : decks et pré-écoute, au plus +6 dB, sans pousser la crête au-delà de 0 dBFS.
+### Modifié
+- L'image Docker compile l'analyseur (étape à part, binaire statique). En local : `npm run build:analyzer`.
+- *EN: server-side audio analysis with Mixxx's algorithms (BPM and constant beat grid, key, EBU R128 loudness, first sound), "Analyse" button, LUFS column, loudness matching.*
+
 ## [0.10.0] — 2026-11-03
 ### Ajouté
 - **Clé USB pour CDJ, sans Rekordbox (expérimental)** — Exporter › « Clé USB pour CDJ » : fadarr écrit lui-même la clé, lisible par les CDJ-2000NXS2 (priorité), CDJ-3000 et XDJ :
@@ -134,6 +152,7 @@ Première version publiable (GitHub, MIT).
 - Interface **français / anglais**, prête pour d'autres langues.
 - *EN: first public release — two decks, mixer, colored waveforms, NAS library, Traktor import, Rekordbox XML export, FR/EN.*
 
+[0.11.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.11.0
 [0.10.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.10.0
 [0.9.1]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.1
 [0.9.0]: https://github.com/mauvestudio/fadarr/releases/tag/v0.9.0

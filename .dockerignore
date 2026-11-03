@@ -6,3 +6,4 @@ data
 deploy.env
 .maj-*
 .git
+analyzer/fadarr-analyze

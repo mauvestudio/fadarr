@@ -6,7 +6,8 @@
  *               un cue = { id, kind: 'hot' | 'memory' | 'loop', num (0-7 : touche de hot cue, -1 sinon), start (s), end (s, loop), name, color ('#rrggbb') }
  *               edited : true dès que les cues ont été modifiés dans fadarr (un nouvel import Traktor ne les écrase plus)
  *   playlists : [{ id, name, folder ('Traktor / Techno' …), source ('fadarr' | 'traktor'), tracks: [chemin relatif] }]
- *   settings  : { macPrefix, mp3OffsetMs }
+ *   settings  : { macPrefix, mp3OffsetMs, autoGain, targetLufs }
+ *   tracks[…].analysis : résultat de l'analyse audio (src/analysis.js) ; gridAuto / keyAuto : valeurs posées par une détection automatique
  *
  * Les fichiers audio ne sont JAMAIS modifiés : tout ce que fadarr sait d'un morceau est ici.
  */
@@ -20,7 +21,9 @@ const LEGACY_FILE = path.join(DATA_DIR, 'mixarr.json'); // ancienne base (avant 
 
 const DEFAULT_SETTINGS = {
   macPrefix: '',       // chemin du dossier musique tel que le Mac le voit (ex. /Volumes/music/Electronic) : sert à l'export Rekordbox
-  mp3OffsetMs: 0       // décalage appliqué aux cues des MP3 entre Traktor et Rekordbox (à calibrer)
+  mp3OffsetMs: 0,      // décalage appliqué aux cues des MP3 entre Traktor et Rekordbox (à calibrer)
+  autoGain: true,      // volume harmonisé dans les decks et la pré-écoute (LUFS mesuré par l'analyse)
+  targetLufs: -9       // niveau visé
 };
 
 let db = { version: 1, tracks: {}, playlists: [], settings: { ...DEFAULT_SETTINGS } };
@@ -180,6 +183,11 @@ function updateSettings(patch) {
   if (patch.mp3OffsetMs !== undefined) {
     const v = Math.round(Number(patch.mp3OffsetMs));
     db.settings.mp3OffsetMs = Number.isFinite(v) ? Math.max(-500, Math.min(500, v)) : 0;
+  }
+  if (patch.autoGain !== undefined) db.settings.autoGain = Boolean(patch.autoGain);
+  if (patch.targetLufs !== undefined) {
+    const v = Number(patch.targetLufs);
+    db.settings.targetLufs = Number.isFinite(v) ? Math.max(-24, Math.min(-5, Math.round(v * 2) / 2)) : -9;
   }
   save();
   return db.settings;

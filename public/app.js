@@ -135,6 +135,16 @@
 
   const dbToGain = (db) => Math.pow(10, db / 20);
 
+  // Analyse serveur (BPM, grille, tonalité, volume) et volume harmonisé
+  const srvAn = { on: false, autoGain: true, target: -9 };
+  /** Gain (dB) qui amène un morceau au niveau visé : borné à -15 / +6 dB, et sans pousser la crête au-delà de 0 dBFS. */
+  function autoGainDb(tr) {
+    if (!srvAn.autoGain || !tr || tr.lufs == null || !Number.isFinite(Number(tr.lufs))) return 0;
+    let db = srvAn.target - Number(tr.lufs);
+    if (db > 0 && tr.peak != null && Number.isFinite(Number(tr.peak))) db = Math.min(db, Math.max(0, -Number(tr.peak)));
+    return Math.max(-15, Math.min(6, Math.round(db * 10) / 10));
+  }
+
   class Deck {
     constructor(id) {
       this.id = id;
@@ -164,6 +174,7 @@
 
     buildChain() {
       const c = ctx;
+      this.auto = c.createGain(); // volume harmonisé (LUFS mesuré par l'analyse), avant le gain du deck
       this.trim = c.createGain();
       this.low = c.createBiquadFilter(); this.low.type = 'lowshelf'; this.low.frequency.value = 220;
       this.mid = c.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 1100; this.mid.Q.value = 0.8;
@@ -172,7 +183,7 @@
       this.fader = c.createGain();
       this.xgain = c.createGain();
       this.analyser = c.createAnalyser(); this.analyser.fftSize = 512;
-      this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.filter);
+      this.auto.connect(this.trim); this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.filter);
       this.filter.connect(this.fader); this.fader.connect(this.xgain); this.xgain.connect(master);
       this.fader.connect(this.analyser);
       $$(`.ch[data-ch="${this.id}"] input`).forEach((inp) => this.setParam(inp.dataset.p, Number(inp.value)));
@@ -190,6 +201,15 @@
         this.filter.Q.value = 0.9;
         this.filter.frequency.value = v < 0 ? 20000 * Math.pow(0.0075, -v) : 20 * Math.pow(400, v);
       }
+    }
+
+    /** Volume harmonisé : amène le morceau au niveau visé (réglages), sans dépasser +6 dB. */
+    applyAutoGain() {
+      if (!this.auto) return;
+      const db = autoGainDb(this.track);
+      this.auto.gain.value = dbToGain(db);
+      const k = $(`.ch[data-ch="${this.id}"] .k-trim`) || $(`.ch[data-ch="${this.id}"] [data-p="trim"]`);
+      if (k) k.title = t('Gain (glisser, molette ; double-clic : remise à zéro)') + (db ? ` — ${t('volume auto : {db} dB', { db: (db > 0 ? '+' : '') + db.toFixed(1) })}` : '');
     }
 
     get duration() { return this.buffer ? this.buffer.duration : 0; }
@@ -216,6 +236,10 @@
       this.cues = [];
       this.status(t('Chargement…'));
       this.renderInfo();
+      // analyse serveur (algorithmes de Mixxx) : lancée en parallèle du téléchargement si le morceau n'est pas encore analysé
+      const pAn = (!local.isLocal(track.path) && srvAn.on && !track.analyzed)
+        ? api('POST', '/api/analysis/track', { path: track.path }).catch((e) => ({ error: e }))
+        : null;
       try {
         let full, data;
         if (local.isLocal(track.path)) { // dossier de cet ordinateur : lu directement dans le navigateur
@@ -238,14 +262,17 @@
         if (local.isLocal(full.path) && !full.duration) { full.duration = buf.duration; local.patch(full.path, { duration: Math.round(buf.duration) }); library.paintWindow(); }
         this.cues = full.cues || [];
         const firstHot = this.cues.find((c) => c.kind !== 'loop' && c.kind === 'memory') || null;
-        this.mainCue = firstHot ? firstHot.start : 0;
+        // sans memory cue : on se cale sur le début de la musique (1er son à -60 dB, comme Mixxx)
+        this.mainCue = firstHot ? firstHot.start : (Number(full.firstSound) || 0);
+        this.applyAutoGain();
         this.offset = this.mainCue;
         // Le morceau est jouable tout de suite ; l'analyse (onde + grille) tourne dans un worker et ne gèle plus l'interface.
         this.status(t('Analyse…'));
         this.renderInfo(); this.renderPads(); this.renderMem(); this.renderLoopBtns();
         refDeck = this; library.renderRows(); // la liste montre ce qui s'enchaîne avec ce morceau
         const mono = toMono(buf);
-        const peaks = await analyze(mono, buf.sampleRate, buf.duration, !this.bpm, (grid) => {
+        if (pAn) pAn.then((r) => this.serverAnalysis(token, buf, r));
+        const peaks = await analyze(mono, buf.sampleRate, buf.duration, !this.bpm && !pAn, (grid) => {
           // grille détectée (comme Mixxx) : posée sans marquer le morceau « modifié », si rien n'a changé entre-temps
           if (token === this.loading && this.buffer === buf && !this.bpm && grid) this.saveMeta({ bpm: grid.bpm, gridStart: grid.gridStart }, true);
         });
@@ -274,7 +301,7 @@
       s.buffer = this.buffer;
       s.playbackRate.value = this.rate;
       if (this.loop && this.loop.active) { s.loop = true; s.loopStart = this.loop.start; s.loopEnd = this.loop.end; }
-      s.connect(this.trim);
+      s.connect(this.auto);
       s.onended = () => { if (this.source === s) { this.playing = false; this.offset = this.duration; this.source = null; this.renderTransport(); } };
       s.start(0, Math.max(0, Math.min(pos, this.duration - 0.001)));
       this.source = s;
@@ -355,6 +382,26 @@
         else if (ev.key === 'Escape') { ev.preventDefault(); done = true; restore(); }
       });
       inp.addEventListener('blur', commit);
+    }
+
+    /** Résultat de l'analyse serveur : grille, tonalité, volume et début de la musique, si le deck n'a pas changé de morceau. */
+    serverAnalysis(token, buf, r) {
+      if (token !== this.loading || this.buffer !== buf || !this.track) return;
+      if (!r || r.error) { // analyse impossible : détection rapide dans le navigateur, comme avant
+        if (!this.bpm) { const g = detectBpmGrid(toMono(buf), buf.sampleRate, buf.duration); if (g) this.saveMeta({ bpm: g.bpm, gridStart: g.gridStart }, true); }
+        return;
+      }
+      const tr = this.track;
+      const moved = this.playing || this.offset !== this.mainCue;
+      for (const k of ['bpm', 'gridStart', 'key', 'lufs', 'peak', 'firstSound', 'analyzed']) tr[k] = r[k];
+      if (!this.cues.some((c) => c.kind === 'memory') && Number(r.firstSound) > 0) {
+        this.mainCue = Number(r.firstSound);
+        if (!moved) this.offset = this.mainCue;
+      }
+      this.applyAutoGain();
+      this.renderInfo(); this.renderPads(); this.renderMem();
+      library.updateAnalysis(tr.path, r);
+      if (refDeck === this) library.renderRows();
     }
 
     /** Enregistre BPM / début de grille (via /api/track/meta). auto = détection automatique (n'est pas marquée « modifiée »). */
@@ -1401,12 +1448,25 @@
       this.revealSel(key);
     },
 
+    /** Recharge la vue affichée sans perdre la position dans la liste (après une analyse). */
+    async refreshKeep() {
+      if (this.view.type === 'local') return;
+      const wrap = $('.table-wrap'); const top = wrap ? wrap.scrollTop : 0;
+      try { await this.show(this.view); } catch (e) { return; }
+      if (wrap) { wrap.scrollTop = top; this.paintWindow(); }
+    },
+
     async show(view) {
       this.view = view;
       this.markSel();
       const q = $('#search').value.trim();
       const actions = $('#list-actions');
       actions.innerHTML = '';
+      if (srvAn.on && view.type !== 'local') {
+        const ab = button(t('Analyser'), (ev) => analysisRun(this.rows, ev && ev.shiftKey));
+        ab.title = t('Calcule BPM, grille, tonalité et volume des morceaux de cette liste qui ne le sont pas encore (Maj+clic : tout recalculer). Une grille importée ou posée à la main n’est jamais remplacée.');
+        actions.appendChild(ab);
+      }
       this.current = null;
       if (view.type === 'playlist') {
         const p = await api('GET', `/api/playlists/${view.id}`);
@@ -1463,10 +1523,11 @@
           if (col === 'key') return keySortValue(t.key);
           if (col === 'added') return Number(t.added) || 0;
           if (col === 'rating') return Number(t.rating) || 0;
+          if (col === 'lufs') return t.lufs != null ? Number(t.lufs) : -1e9;
           if (col === 'index' || col === 'bpm' || col === 'duration' || col === 'cueCount') return Number(t[col]) || (col === 'index' ? 0 : -1);
           return String(t[col] || '').toLowerCase();
         };
-        const missing = (v) => v === -1 || v === 99 || v === '';
+        const missing = (v) => v === -1 || v === 99 || v === '' || v === -1e9;
         rows.sort((a, b) => {
           const x = val(a); const y = val(b);
           if (missing(x) !== missing(y)) return missing(x) ? 1 : -1; // sans BPM / tonalité : toujours en bas
@@ -1503,6 +1564,7 @@
         + `<td class="cd"><span class="cdot" data-cdot="1"${t.color ? ` style="background:${t.color}"` : ''} title="${T('Clic : couleur')}"></span></td>`
         + `<td class="ti" title="${esc(t.path)}">${esc(t.title)}</td><td>${esc(t.artist)}</td>`
         + `<td class="r bpm${bc ? ` c${bc}` : ''}">${t.bpm ? Number(t.bpm).toFixed(2) : '<span class="muted">—</span>'}</td><td class="key${kc ? ` c${kc}` : ''}"${keyStyle} title="${esc(t.key || '')}">${esc(showKey(t.key))}</td>`
+        + `<td class="r dim"${t.lufs != null && t.peak != null ? ` title="${T('Crête : {p} dBFS', { p: t.peak.toFixed(1) })}"` : ''}>${t.lufs != null ? t.lufs.toFixed(1) : ''}</td>`
         + `<td class="rate">${ratingStars(t.rating)}</td>`
         + `<td class="r dim">${t.duration ? fmt(t.duration) : ''}</td>`
         + `<td class="dim">${esc(t.format || '')}${t.bitrate && !/WAV|AIFF|FLAC/i.test(t.format) ? ` ${t.bitrate}` : ''}</td><td class="r dim">${t.cueCount || ''}</td>`
@@ -1693,7 +1755,15 @@
     updateCount(path, n) {
       const row = this.rows.find((r) => r.path === path); if (row) row.cueCount = n;
       const vr = (this._vrows || []).find((r) => r.path === path); if (vr) vr.cueCount = n;
-      const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(11)`); if (tr) tr.textContent = n || ''; // colonne Cues
+      const tr = $(`#tracks tr[data-path="${CSS.escape(path)}"] td:nth-child(12)`); if (tr) tr.textContent = n || ''; // colonne Cues
+    },
+
+    updateAnalysis(path, r) {
+      for (const list of [this.rows, this._vrows || []]) {
+        const row = list.find((x) => x.path === path);
+        if (row) for (const k of ['bpm', 'gridStart', 'key', 'lufs', 'peak', 'firstSound', 'analyzed']) row[k] = r[k];
+      }
+      this.paintWindow();
     },
 
     updateBpm(path, bpm) {
@@ -1825,7 +1895,7 @@
       if (local.isLocal(t.path)) {
         local.url(t.path).then((u) => { if (this.path !== t.path) { URL.revokeObjectURL(u); return; } this._url = u; this.el.src = u; this.el.play().catch(() => { /* rien */ }); }).catch((e) => { toast(e.message, 'error'); this.stop(); });
       } else this.el.src = `/api/audio?path=${encodeURIComponent(t.path)}`;
-      this.el.volume = 0.85;
+      this.el.volume = Math.min(1, 0.85 * dbToGain(Math.min(0, autoGainDb(t)))); // volume harmonisé (baisse seulement : un <audio> ne monte pas au-delà de 1)
       const seekable = local.isLocal(t.path) || !/\.aiff?$/i.test(t.path); // l'AIFF du NAS est converti à la volée : pas de saut possible
       this.el.onloadedmetadata = () => { if (seekable && Number.isFinite(this.el.duration)) this.el.currentTime = this.el.duration * 0.33; };
       if (!local.isLocal(t.path)) this.el.play().catch((e) => { toast(window.I18N.t('Pré-écoute impossible : {msg}', { msg: e.message }), 'error'); this.stop(); });
@@ -1842,8 +1912,40 @@
   function button(label, fn) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn'; b.textContent = label;
-    b.addEventListener('click', () => Promise.resolve(fn()).catch((e) => toast(e.message, 'error')));
+    b.addEventListener('click', (ev) => Promise.resolve(fn(ev)).catch((e) => toast(e.message, 'error')));
     return b;
+  }
+
+  // ---------- analyse de la liste (file d'attente côté serveur, progression dans la barre d'état) ----------
+  let analysisTimer = null;
+  async function analysisRun(rows, force) {
+    const paths = (rows || []).filter((r) => !r.missing && !local.isLocal(r.path) && (force || !r.analyzed)).map((r) => r.path);
+    if (!paths.length) { toast(t('Tous les morceaux de cette liste sont déjà analysés (Maj+clic pour tout recalculer).')); return; }
+    if (force && paths.length > 20 && !confirm(t('Recalculer {n} morceaux ? Les grilles importées ou posées à la main ne seront pas touchées.', { n: paths.length }))) return;
+    const r = await api('POST', '/api/analysis', { paths, force: Boolean(force) });
+    toast(t('{n} morceaux en analyse…', { n: r.added }));
+    analysisPoll();
+  }
+  async function analysisPoll() {
+    clearTimeout(analysisTimer);
+    let st;
+    try { st = await api('GET', '/api/analysis'); } catch (e) { analysisTimer = setTimeout(analysisPoll, 5000); return; }
+    const el = $('#status-l');
+    if (st.running) {
+      el.textContent = t('Analyse : {done} / {total}…', { done: st.done, total: st.total });
+      el.title = (st.current || []).join('\n');
+      if (st.done !== analysisPoll._last) { analysisPoll._last = st.done; if (st.done % 10 === 0) library.refreshKeep(); }
+      analysisTimer = setTimeout(analysisPoll, 1500);
+      return;
+    }
+    if (analysisPoll._last !== undefined) {
+      analysisPoll._last = undefined;
+      el.textContent = t('Prêt…'); el.title = '';
+      const bad = st.failed ? ` ${t('({n} impossibles)', { n: st.failed })}` : '';
+      toast(t('Analyse terminée : {n} morceaux', { n: st.done - st.failed }) + bad, st.failed ? 'error' : undefined);
+      if (st.failed) console.warn('fadarr — analyse impossible :', st.errors);
+      library.refreshKeep();
+    }
   }
 
   // ===========================================================================
@@ -1869,13 +1971,20 @@
         <input type="number" id="s-off" value="${Number(s.mp3OffsetMs) || 0}" step="1" min="-500" max="500">
         <span class="small muted">${t("Traktor et Rekordbox ne comptent pas le début d'un MP3 tout à fait pareil. Laisse 0 tant qu'on n'a pas calibré sur tes morceaux. Les WAV et AIFF ne sont pas concernés.")}</span>
       </label>
+      <label class="check"><input type="checkbox" id="s-ag"${s.autoGain !== false ? ' checked' : ''}> ${t('Volume harmonisé (decks et pré-écoute)')}</label>
+      <label>${t('Niveau visé (LUFS)')}
+        <input type="number" id="s-lufs" value="${Number.isFinite(Number(s.targetLufs)) ? Number(s.targetLufs) : -9}" step="0.5" min="-24" max="-5">
+        <span class="small muted">${t('Chaque morceau analysé est ramené à ce niveau (au plus +6 dB, sans saturer). -9 convient à la musique électronique masterisée ; plus bas = marge pour les morceaux plus calmes.')}</span>
+      </label>
       <label>${t('Langue')}
         <select id="s-lang">${Object.entries(window.I18N.LANGS).map(([k, v]) => `<option value="${k}"${k === window.I18N.lang ? ' selected' : ''}>${v}</option>`).join('')}</select>
       </label>
       <div class="row"><button class="btn" value="cancel">${t('Annuler')}</button><button class="btn accent" id="s-save" value="ok">${t('Enregistrer')}</button></div>`, (root) => {
       $('#s-save', root).addEventListener('click', async (ev) => {
         ev.preventDefault();
-        try { await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value) }); $('#modal').close(); toast(t('Réglages enregistrés.')); if ($('#s-lang', root).value !== window.I18N.lang) window.I18N.setLang($('#s-lang', root).value); } catch (e) { toast(e.message, 'error'); }
+        try { const ns = await api('PUT', '/api/settings', { macPrefix: $('#s-mac', root).value, mp3OffsetMs: Number($('#s-off', root).value), autoGain: $('#s-ag', root).checked, targetLufs: Number($('#s-lufs', root).value) });
+          srvAn.autoGain = ns.autoGain !== false; srvAn.target = Number(ns.targetLufs);
+          for (const d of [decks.A, decks.B]) if (d) d.applyAutoGain(); $('#modal').close(); toast(t('Réglages enregistrés.')); if ($('#s-lang', root).value !== window.I18N.lang) window.I18N.setLang($('#s-lang', root).value); } catch (e) { toast(e.message, 'error'); }
       });
     });
   }
@@ -2210,6 +2319,10 @@
   bindNas();
   bindGlobal();
   library.initList();
+  Promise.all([api('GET', '/api/analysis').catch(() => null), api('GET', '/api/settings').catch(() => null)]).then(([st, set]) => {
+    if (set) { srvAn.autoGain = set.autoGain !== false; if (Number.isFinite(Number(set.targetLufs))) srvAn.target = Number(set.targetLufs); }
+    if (st && st.available) { srvAn.on = true; if (library.view) library.show(library.view).catch(() => { /* rien */ }); if (st.running) { analysisPoll._last = st.done; analysisPoll(); } }
+  });
   refreshNas().then(() => library.reload()).catch((e) => toast(e.message, 'error'));
   requestAnimationFrame(frame);
   window.fadarr = { decks, library }; // pour le débogage dans la console

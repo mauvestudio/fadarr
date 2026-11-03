@@ -15,6 +15,21 @@
 
   const DICT = {
     en: {
+      // ---------- analyse audio / audio analysis ----------
+      'Analyser': 'Analyse',
+      'Calcule BPM, grille, tonalité et volume des morceaux de cette liste qui ne le sont pas encore (Maj+clic : tout recalculer). Une grille importée ou posée à la main n’est jamais remplacée.': 'Detects BPM, beat grid, key and loudness for the tracks in this list that are not analysed yet (Shift+click: redo all). An imported or hand-set grid is never replaced.',
+      'Tous les morceaux de cette liste sont déjà analysés (Maj+clic pour tout recalculer).': 'All tracks in this list are already analysed (Shift+click to redo all).',
+      'Recalculer {n} morceaux ? Les grilles importées ou posées à la main ne seront pas touchées.': 'Re-analyse {n} tracks? Imported or hand-set grids will not be touched.',
+      '{n} morceaux en analyse…': '{n} tracks being analysed…',
+      'Analyse : {done} / {total}…': 'Analysing: {done} / {total}…',
+      '({n} impossibles)': '({n} failed)',
+      'Analyse terminée : {n} morceaux': 'Analysis done: {n} tracks',
+      'Crête : {p} dBFS': 'Peak: {p} dBFS',
+      'volume auto : {db} dB': 'auto gain: {db} dB',
+      'Volume moyen (LUFS, norme EBU R128) — calculé par « Analyser »': 'Average loudness (LUFS, EBU R128) — measured by “Analyse”',
+      'Volume harmonisé (decks et pré-écoute)': 'Loudness matching (decks and preview)',
+      'Niveau visé (LUFS)': 'Target level (LUFS)',
+      'Chaque morceau analysé est ramené à ce niveau (au plus +6 dB, sans saturer). -9 convient à la musique électronique masterisée ; plus bas = marge pour les morceaux plus calmes.': 'Each analysed track is brought to this level (at most +6 dB, without clipping). -9 suits mastered electronic music; lower = headroom for quieter tracks.',
       // ---------- en-tête / header ----------
       'NAS…': 'NAS…',
       'NAS connecté': 'NAS connected',

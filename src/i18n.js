@@ -19,7 +19,8 @@ const EN = {
   'Choisis au moins une playlist.': 'Pick at least one playlist.',
   'Préparation introuvable (le serveur a peut-être redémarré).': 'Preparation not found (the server may have restarted).',
   'Fichier introuvable.': 'File not found.',
-  'Date invalide pour export.pdb.': 'Invalid date for export.pdb.'
+  'Date invalide pour export.pdb.': 'Invalid date for export.pdb.',
+  "Analyseur absent : reconstruis l'image Docker (ou lance npm run build:analyzer).": 'Analyzer missing: rebuild the Docker image (or run npm run build:analyzer).'
 };
 
 function tr(req, msg) {

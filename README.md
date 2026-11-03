@@ -37,6 +37,10 @@ fadarr is a small self-hosted web app (Node.js, no framework, no build step). It
   analysis files (beat grid, hot cues and memory cues with colours, colour waveforms) for CDJ-2000NXS2, CDJ-3000 and XDJ players.
   Smart sync: only what changed since the last export is rewritten. Needs Chrome/Edge over https (e.g. `tailscale serve`) or localhost.
   Ported from [rbxport](https://github.com/chrisle/rbxport); test the stick on a real player before a gig.
+- **Audio analysis, with Mixxx's algorithms** — *Analyse* in the list toolbar detects BPM and beat grid (constant tempo,
+  rounded like Mixxx), key, loudness (LUFS, EBU R128) and where the music starts, on the server; a track loaded on a deck
+  is analysed on the spot. It only fills what is missing: a grid imported from Traktor / Rekordbox or set by hand is never replaced.
+  **Loudness matching** (Settings) brings every analysed track to the same level on the decks and in the preview.
 - **Safe by design** — the music folder is mounted read-only: fadarr never modifies an audio file. Everything it knows lives in `data/fadarr.json`.
 - **NAS switch** — disconnect the NAS from the header (library and playlists stay browsable; loaded decks keep playing).
 - **French / English** — and ready for more languages (see below).
@@ -92,7 +96,8 @@ npm install
 MUSIC_DIR=/path/to/music DATA_DIR=./data npm start   # http://localhost:3010
 ```
 
-`src/` server (Express): `library.js` (scan), `traktor.js` (NML import), `rekordbox.js` (XML export), `store.js` (database).
+`analyzer/` C++ analyser (qm-dsp, Mixxx's algorithms): `npm run build:analyzer` (needs a C++ compiler; the Docker image builds it).
+`src/` server (Express): `analysis.js` (analysis queue), `library.js` (scan), `traktor.js` (NML import), `rekordbox.js` (XML export), `store.js` (database).
 `public/` client: `app.js` (decks, Web Audio, waveforms, library), `app.css`, `i18n.js`. AIFF is converted to WAV on the fly with ffmpeg for browsers that cannot decode it.
 
 ## Roadmap
