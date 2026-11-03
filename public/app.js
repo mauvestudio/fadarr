@@ -135,6 +135,14 @@
 
   const dbToGain = (db) => Math.pow(10, db / 20);
 
+  /** Sound Color FX : effet choisi (commun aux voies, comme sur une table) et potard PARAMETER. */
+  const soundColor = {
+    mode: 'filter', param: 0.5,
+    setMode(m) { this.mode = m; for (const d of [decks.A, decks.B]) if (d && d.cfx) d.cfx.setMode(m); },
+    setParam(p) { this.param = p; for (const d of [decks.A, decks.B]) if (d && d.cfx) d.cfx.setParam(p); }
+  };
+  window.fadarrSoundColor = soundColor; // pour les skins (boutons SPACE / DUB ECHO / CRUSH / SWEEP / NOISE / FILTER, potard PARAMETER)
+
   // Analyse serveur (BPM, grille, tonalité, volume) et volume harmonisé
   const srvAn = { on: false, autoGain: true, target: -9 };
   /** Gain (dB) qui amène un morceau au niveau visé : borné à -15 / +6 dB, et sans pousser la crête au-delà de 0 dBFS. */
@@ -179,12 +187,14 @@
       this.low = c.createBiquadFilter(); this.low.type = 'lowshelf'; this.low.frequency.value = 220;
       this.mid = c.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 1100; this.mid.Q.value = 0.8;
       this.high = c.createBiquadFilter(); this.high.type = 'highshelf'; this.high.frequency.value = 4200;
-      this.filter = c.createBiquadFilter(); this.filter.type = 'allpass';
+      // potard COLOR / filtre : Sound Color FX façon table de club (public/colorfx.js), effet commun aux deux voies
+      this.cfx = new window.FadarrColorFX.ColorFX(c, () => (this.bpm ? this.bpm * this.rate : 0));
+      this.cfx.setMode(soundColor.mode); this.cfx.setParam(soundColor.param);
       this.fader = c.createGain();
       this.xgain = c.createGain();
       this.analyser = c.createAnalyser(); this.analyser.fftSize = 512;
-      this.auto.connect(this.trim); this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.filter);
-      this.filter.connect(this.fader); this.fader.connect(this.xgain); this.xgain.connect(master);
+      this.auto.connect(this.trim); this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.cfx.input);
+      this.cfx.output.connect(this.fader); this.fader.connect(this.xgain); this.xgain.connect(master);
       this.fader.connect(this.analyser);
       $$(`.ch[data-ch="${this.id}"] input`).forEach((inp) => this.setParam(inp.dataset.p, Number(inp.value)));
     }
@@ -194,13 +204,7 @@
       if (p === 'trim') this.trim.gain.value = dbToGain(v);
       else if (p === 'low' || p === 'mid' || p === 'high') this[p].gain.value = v;
       else if (p === 'fader') this.fader.gain.value = v * v;
-      else if (p === 'filter') {
-        // un seul bouton : à gauche passe-bas, à droite passe-haut, au centre neutre
-        if (Math.abs(v) < 0.03) { this.filter.type = 'allpass'; return; }
-        this.filter.type = v < 0 ? 'lowpass' : 'highpass';
-        this.filter.Q.value = 0.9;
-        this.filter.frequency.value = v < 0 ? 20000 * Math.pow(0.0075, -v) : 20 * Math.pow(400, v);
-      }
+      else if (p === 'filter') this.cfx.set(v); // à gauche graves / passe-bas, à droite aigus / passe-haut, neutre au centre
     }
 
     /** Volume harmonisé : amène le morceau au niveau visé (réglages), sans dépasser +6 dB. */

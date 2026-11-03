@@ -3,6 +3,16 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [Non publié]
+### Ajouté
+- **Sound Color FX façon table de club** (`public/colorfx.js`) : le potard filtre de chaque voie pilote l'effet choisi, commun aux deux voies
+  (à gauche graves / passe-bas, à droite aigus / passe-haut, neutre au centre), avec un potard PARAMETER :
+  FILTER (résonant 24 dB/oct, PARAMETER = résonance), SPACE (réverbe filtrée), DUB ECHO (écho calé sur le tempo, qui s'éteint tout seul),
+  CRUSH (réduction de bits et d'échantillonnage), SWEEP (gate rythmique à gauche, passe-bande qui balaie à droite), NOISE (bruit filtré).
+  Réglages lissés (pas de craquement en tournant). Par défaut : FILTER, déjà plus « table de club » que l'ancien filtre.
+  Le choix de l'effet et le potard PARAMETER arrivent avec le skin Pionarr.
+- Skin Pionarr : façade de la table 2 voies (`tools/skins/pionarr.js` -> `public/skins/pionarr.svg`), pas encore branchée.
+
 ## [0.13.0] — 2026-11-03
 ### Ajouté
 - **Clés et disques, joués en direct** (panneau de gauche, comme les appareils de Rekordbox) : ＋ Brancher une clé / un disque.
