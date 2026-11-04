@@ -119,6 +119,7 @@
   let ctx = null;
   let master = null;
   const xf = { value: 0 };
+  const xfAssign = { A: 'X', B: 'Y' };
 
   function audio() {
     if (!ctx) {
@@ -188,22 +189,28 @@
       this.low = c.createBiquadFilter(); this.low.type = 'lowshelf'; this.low.frequency.value = 220;
       this.mid = c.createBiquadFilter(); this.mid.type = 'peaking'; this.mid.frequency.value = 1100; this.mid.Q.value = 0.8;
       this.high = c.createBiquadFilter(); this.high.type = 'highshelf'; this.high.frequency.value = 4200;
+      // 4e bande (HI MID) des tables 4 bandes (skin Xonarr) : neutre (0 dB) tant qu'on n'y touche pas
+      this.hmid = c.createBiquadFilter(); this.hmid.type = 'peaking'; this.hmid.frequency.value = 2800; this.hmid.Q.value = 0.9; this.hmid.gain.value = this.hmidDb || 0;
+      // filtres VCF façon Xone (public/xonefilter.js) : transparents tant que la voie n'est pas affectée à un filtre allumé
+      this.vcf = new window.FadarrXone.XoneFilter(c);
       // potard COLOR / filtre : Sound Color FX façon table de club (public/colorfx.js), effet commun aux deux voies
       this.cfx = new window.FadarrColorFX.ColorFX(c, () => (this.bpm ? this.bpm * this.rate : 0));
       this.cfx.setMode(soundColor.mode); this.cfx.setParam(soundColor.param);
       this.fader = c.createGain();
       this.xgain = c.createGain();
       this.analyser = c.createAnalyser(); this.analyser.fftSize = 512;
-      this.auto.connect(this.trim); this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.high); this.high.connect(this.cfx.input);
+      this.auto.connect(this.trim); this.trim.connect(this.low); this.low.connect(this.mid); this.mid.connect(this.hmid); this.hmid.connect(this.high); this.high.connect(this.vcf.input); this.vcf.output.connect(this.cfx.input);
       this.cfx.output.connect(this.fader); this.fader.connect(this.xgain); this.xgain.connect(master);
       this.fader.connect(this.analyser);
       $$(`.ch[data-ch="${this.id}"] input`).forEach((inp) => this.setParam(inp.dataset.p, Number(inp.value)));
+      window.FadarrXone.state.sync();
     }
 
     setParam(p, v) {
       if (!ctx) return;
       if (p === 'trim') this.trim.gain.value = dbToGain(v);
       else if (p === 'low' || p === 'mid' || p === 'high') this[p].gain.value = v;
+    else if (p === 'hmid') { this.hmidDb = v; this.hmid.gain.value = v; }
       else if (p === 'fader') this.fader.gain.value = v * v;
       else if (p === 'filter') this.cfx.set(v); // à gauche graves / passe-bas, à droite aigus / passe-haut, neutre au centre
     }
@@ -1052,8 +1059,9 @@
     if (!ctx) return;
     const v = (xf.value + 1) / 2; // 0 = tout A, 1 = tout B
     // courbe à puissance constante, plein volume des deux côtés au centre
-    decks.A.xgain.gain.value = Math.min(1, Math.cos(v * Math.PI / 2) / Math.SQRT1_2);
-    decks.B.xgain.gain.value = Math.min(1, Math.sin(v * Math.PI / 2) / Math.SQRT1_2);
+    const side = { X: Math.min(1, Math.cos(v * Math.PI / 2) / Math.SQRT1_2), Y: Math.min(1, Math.sin(v * Math.PI / 2) / Math.SQRT1_2), OFF: 1 };
+    // affectation au crossfader (skin Xonarr : X / OFF / Y) ; par défaut A à gauche, B à droite
+    decks.A.xgain.gain.value = side[xfAssign.A]; decks.B.xgain.gain.value = side[xfAssign.B];
   }
 
   /** Remet un réglage à sa valeur de départ (data-def) et prévient les écouteurs. */
@@ -1116,8 +1124,8 @@
     draw();
   }
 
-  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary', pionarr: 'Pionarr' };
-  const HW_SKINS = ['pionarr']; // skins « matériel » : façades dessinées (public/hwskin.js) posées sur le même moteur
+  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary', pionarr: 'Pionarr', xonarr: 'Xonarr' };
+  const HW_SKINS = ['pionarr', 'xonarr']; // skins « matériel » : façades dessinées (public/hwskin.js) posées sur le même moteur
   function applySkin(name) {
     if (!SKINS[name]) name = 'base';
     document.body.dataset.skin = name;
@@ -2607,6 +2615,7 @@
   requestAnimationFrame(frame);
   window.fadarr = { decks, library }; // pour le débogage dans la console
   // pour les skins matériel (public/hwskin.js) : même moteur, autre façade
-  window.fadarrApp = { decks, library, soundColor, local, fmt, showKey, keyColor, t, toast, HOT_COLORS, PAD, get refDeck() { return refDeck; }, applySkin };
+  window.fadarrApp = { decks, library, soundColor, local, fmt, showKey, keyColor, t, toast, HOT_COLORS, PAD, get refDeck() { return refDeck; }, applySkin,
+    get xfAssign() { return { ...xfAssign }; }, setXfAssign(id, v) { xfAssign[id] = v; applyCrossfader(); } };
   if (HW_SKINS.includes(document.body.dataset.skin) && window.fadarrHw) window.fadarrHw.mount(document.body.dataset.skin).catch(() => applySkin('base'));
 })();

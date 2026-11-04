@@ -55,13 +55,17 @@ Practise on the gear you will play on: the same engine, several faces (Skin menu
 | Look | Inspired by | Status |
 |---|---|---|
 | **Pionarr + Deckarr** | a club mixer (2 channels) between two flagship players | ✅ |
+| **Xonarr + Deckarr** | a British 4-band club mixer (2 channels) between the same players | ✅ |
 | **Traktarr** | Traktor (the current default look) | ✅ |
-| **Xonarr + Deckarr** | a British club mixer with filters, between the same players | in progress |
 | **Rekordarr** | Rekordbox | in progress |
 
 ![Pionarr + Deckarr](docs/look-pionarr.jpg)
 
 *Pionarr + Deckarr: turn the browse knob to scroll the library, press it to load; Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) on the COLOR knobs. All drawn from scratch — no brand logos or artwork.*
+
+![Xonarr + Deckarr](docs/look-xonarr.jpg)
+
+*Xonarr + Deckarr: 4-band EQ, two VCF filters (HPF / BPF / LPF, resonance, frequency, crunch) assigned per channel, X / OFF / Y crossfader assign.*
 
 ## Your Traktor library, anywhere
 

@@ -3,6 +3,17 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.15.0] — 2026-11-05
+### Ajouté
+- **Skin « Xonarr + Deckarr »** (menu Skin) : la table Xonarr :26 (façon Xone:96, 2 voies, façade grise vectorielle sans logo)
+  entre deux platines Deckarr. Branché : GAIN, **EQ 4 bandes** (nouvelle bande HI MID dans le moteur, neutre ailleurs), faders,
+  crossfader et **affectation X / OFF / Y** par voie, MASTER, vu-mètres à LED par seuil.
+- **Filtres VCF façon Xone** (`public/xonefilter.js`) : deux unités FILTER 1 et FILTER 2, chacune avec HPF / BPF / LPF, FREQ
+  (20 Hz à 20 kHz), RES (MILD à WILD), CRUNCH (saturation) et marche / arrêt ; chaque voie choisit son unité (inverseur 1 / OFF / 2).
+  En quittant le skin, filtres coupés, HI MID à 0 dB et crossfader remis A / B : rien ne reste caché.
+
+*EN: new Xonarr + Deckarr look with 4-band EQ, two Xone-style VCF filters assignable per channel, and X / OFF / Y crossfader assign.*
+
 ## [0.14.0] — 2026-11-04
 ### Ajouté
 - **Sound Color FX façon table de club** (`public/colorfx.js`) : le potard filtre de chaque voie pilote l'effet choisi, commun aux deux voies

@@ -57,13 +57,17 @@ Pour t'entraîner sur le matériel que tu vas jouer : le même moteur, plusieurs
 | Look | Inspiré de | État |
 |---|---|---|
 | **Pionarr + Deckarr** | une table de club 2 voies entre deux platines haut de gamme | ✅ |
+| **Xonarr + Deckarr** | une table anglaise 4 bandes (2 voies) entre les mêmes platines | ✅ |
 | **Traktarr** | Traktor (le look actuel, par défaut) | ✅ |
-| **Xonarr + Deckarr** | une table anglaise à filtres, entre les mêmes platines | en cours |
 | **Rekordarr** | Rekordbox | en cours |
 
 ![Pionarr + Deckarr](docs/look-pionarr.jpg)
 
 *Pionarr + Deckarr : tourne le sélecteur pour défiler dans la bibliothèque, appuie pour charger ; Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) sur les potards COLOR. Tout est redessiné : aucun logo ni visuel de marque.*
+
+![Xonarr + Deckarr](docs/look-xonarr.jpg)
+
+*Xonarr + Deckarr : EQ 4 bandes, deux filtres VCF (HPF / BPF / LPF, résonance, fréquence, crunch) affectés voie par voie, affectation du crossfader X / OFF / Y.*
 
 ## Ta bibliothèque Traktor, partout
 

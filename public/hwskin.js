@@ -9,7 +9,9 @@
 (function () {
   'use strict';
 
-  const FILES = { deckarr: '/skins/deckarr.svg', pionarr: '/skins/pionarr.svg' };
+  const FILES = { deckarr: '/skins/deckarr.svg', pionarr: '/skins/pionarr.svg', xonarr: '/skins/xonarr.svg' };
+  // tables : taille du dessin (viewBox) et hauteur affichée (unités des platines, 1260 = hauteur d'une platine)
+  const MIXERS = { pionarr: { w: 893, h: 1178, show: 1178 }, xonarr: { w: 694, h: 1410, show: 1260 } };
   const DECK_VB = { w: 900, h: 1260 };
   const cache = {};
   const svgText = (url) => { if (!cache[url]) cache[url] = fetch(url).then((r) => { if (!r.ok) throw new Error(`Skin introuvable (${url})`); return r.text(); }); return cache[url]; };
@@ -43,6 +45,9 @@
   /** Fausse « entrée » pour PARAMETER (Sound Color FX), qui n'a pas d'<input> dans les autres skins. */
   const paramInput = () => ({ min: 0, max: 1, step: 0.01, dataset: { def: '0.5', center: '' }, get value() { return String(A.soundColor.param); }, set value(v) { A.soundColor.setParam(Number(v)); }, dispatchEvent() {} });
 
+  /** Fausse « entrée » sur une valeur qui n'a pas d'<input> dans les autres skins. */
+  const fake = (min, max, def, step, center, get, setv) => ({ min, max, step, dataset: { def: String(def), center: center ? '1' : '' }, get value() { return String(get()); }, set value(v) { setv(Number(v)); }, dispatchEvent() {} });
+
   function mixerInput(ctl) {
     let m = /^ch([12])-(trim|hi|mid|low|color|fader)$/.exec(ctl);
     if (m) {
@@ -52,6 +57,18 @@
       if (inp && p !== 'fader') inp.dataset.center = '1';
       return inp;
     }
+    // Xonarr : EQ 4 bandes (LO MID = médium existant, HI MID = 4e bande), gain
+    m = /^ch([12])-(gain|himid|lomid)$/.exec(ctl);
+    if (m) {
+      const id = m[1] === '1' ? 'A' : 'B';
+      if (m[2] === 'himid') { const d = A.decks[id]; return fake(-26, 6, 0, 0.5, true, () => d.hmidDb || 0, (v) => { d.hmidDb = v; d.setParam('hmid', v); }); }
+      const inp = $(`.ch[data-ch="${id}"] input[data-p="${m[2] === 'gain' ? 'trim' : 'mid'}"]`);
+      if (inp) inp.dataset.center = '1';
+      return inp;
+    }
+    // Xonarr : réglages des deux filtres (RES, FREQ, CRUNCH)
+    m = /^f([12])-(res|freq|crunch)$/.exec(ctl);
+    if (m) { const X = window.FadarrXone.state; const u = X.units[m[1]]; return fake(0, 1, m[2] === 'freq' ? 0.5 : 0, 0.01, false, () => u[m[2]], (v) => { u[m[2]] = v; X.sync(); }); }
     if (ctl === 'xfader') { const x = $('#xfader'); if (x) x.dataset.center = ''; return x; }
     if (ctl === 'master') return $('#master');
     if (ctl === 'scfx-param') return paramInput();
@@ -67,11 +84,11 @@
     if (!A) return; // l'appli finit de démarrer : elle rappellera mount()
     if (mounted === name) return;
     unmount();
-    const [deckSvg, mixSvg] = await Promise.all([svgText(FILES.deckarr), svgText(FILES.pionarr)]);
+    const [deckSvg, mixSvg] = await Promise.all([svgText(FILES.deckarr), svgText(FILES[name])]);
     const stage = $('#hw-stage');
     stage.innerHTML = `<div class="hw-row">
       <div class="hw-unit hw-deck" data-deck="A">${deckSvg}<div class="hw-screen"></div><span class="hw-letter">A</span></div>
-      <div class="hw-unit hw-mixer">${mixSvg}</div>
+      <div class="hw-unit hw-mixer hw-${name}" style="height: calc(${MIXERS[name].show}px * var(--s))">${mixSvg}</div>
       <div class="hw-unit hw-deck" data-deck="B">${deckSvg}<div class="hw-screen"></div><span class="hw-letter b">B</span></div>
     </div>`;
     $$('svg', stage).forEach((s) => { s.removeAttribute('width'); s.removeAttribute('height'); });
@@ -94,6 +111,7 @@
     moved = [];
     const stage = $('#hw-stage'); stage.hidden = true; stage.innerHTML = '';
     document.body.classList.remove('hw');
+    if (mounted === 'xonarr') resetXone();
     ctls = []; mounted = null;
   }
 
@@ -103,7 +121,8 @@
     const head = $('header.top'); const foot = $('footer.status');
     const availH = window.innerHeight - (head ? head.offsetHeight : 0) - (foot ? foot.offsetHeight : 0) - 230; // ~5 lignes de bibliothèque
     const availW = stage.clientWidth - 16;
-    const s = Math.max(0.25, Math.min(availH / DECK_VB.h, availW / (DECK_VB.w * 2 + 893 + 30)));
+    const mx = MIXERS[mounted] || MIXERS.pionarr;
+    const s = Math.max(0.25, Math.min(availH / DECK_VB.h, availW / (DECK_VB.w * 2 + mx.w * mx.show / mx.h + 30)));
     row.style.setProperty('--s', s);
   }
 
@@ -187,8 +206,37 @@
 
   const SCFX = { 'scfx-space': 'space', 'scfx-dubecho': 'dubecho', 'scfx-crush': 'crush', 'scfx-sweep': 'sweep', 'scfx-noise': 'noise', 'scfx-filter': 'filter' };
 
+  /** En quittant la Xonarr : filtres coupés, 4e bande à 0 dB, crossfader remis A à gauche / B à droite (rien ne reste caché). */
+  function resetXone() {
+    const X = window.FadarrXone.state; X.units[1].on = false; X.units[2].on = false; X.assign.A = 0; X.assign.B = 0; X.sync();
+    for (const id of ['A', 'B']) { const d = A.decks[id]; d.hmidDb = 0; d.setParam('hmid', 0); }
+    A.setXfAssign('A', 'X'); A.setXfAssign('B', 'Y');
+  }
+
+  /** Inverseur 3 positions : un clic à gauche du levier le pousse d'un cran à gauche, à droite d'un cran à droite. */
+  function nudge(el, ev, cur) {
+    const m = el.ownerSVGElement.getScreenCTM(); const p = el.ownerSVGElement.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY;
+    const q = p.matrixTransform(m.inverse());
+    return Math.max(-1, Math.min(1, cur + (q.x < Number(el.dataset.cx) ? -1 : 1)));
+  }
+  const FILT_POS = { 1: -1, 0: 0, 2: 1 }; const POS_FILT = { '-1': 1, 0: 0, 1: 2 };
+  const XFA_POS = { X: -1, OFF: 0, Y: 1 }; const POS_XFA = { '-1': 'X', 0: 'OFF', 1: 'Y' };
+
   function press(el, ctl, ev) {
     if (SCFX[ctl]) { const m = SCFX[ctl]; A.soundColor.setMode(A.soundColor.mode === m ? 'none' : m); return; }
+    let m = /^f([12])-(hpf|bpf|lpf|on)$/.exec(ctl);
+    if (m) {
+      const X = window.FadarrXone.state; const u = X.units[m[1]];
+      if (m[2] === 'on') u.on = !u.on; else { u.mode = m[2]; u.on = true; } // choisir un type allume aussi le filtre
+      X.sync(); return;
+    }
+    m = /^ch([12])-(filt|xfa)$/.exec(ctl);
+    if (m) {
+      const id = m[1] === '1' ? 'A' : 'B';
+      if (m[2] === 'filt') { const X = window.FadarrXone.state; X.assign[id] = POS_FILT[nudge(el, ev, FILT_POS[X.assign[id]])]; X.sync(); }
+      else A.setXfAssign(id, POS_XFA[nudge(el, ev, XFA_POS[A.xfAssign[id]])]);
+      return;
+    }
     const d = deckOf(el); if (!d) return;
     const beat = d.bpm ? 60 / (d.bpm) : 0.5;
     const memories = () => (d.cues || []).filter((c) => c.kind === 'memory').map((c) => c.start).sort((a, b) => a - b);
@@ -295,6 +343,7 @@
     const stage = $('#hw-stage');
     // Sound Color FX allumé
     for (const [ctl, m] of Object.entries(SCFX)) toggle($(`.hw-mixer [data-ctl="${ctl}"]`, stage), 'hw-on', A.soundColor.mode === m);
+    if (mounted === 'xonarr') xoneLights(stage);
     // vu-mètres
     let masterPk = 0;
     for (const [n, id] of [['1', 'A'], ['2', 'B']]) {
@@ -333,6 +382,33 @@
     }
   }
 
+  /** Xonarr : anneaux des touches de filtre et position des inverseurs. */
+  function xoneLights(stage) {
+    const X = window.FadarrXone.state;
+    for (const n of ['1', '2']) {
+      const u = X.units[n];
+      for (const k of ['hpf', 'bpf', 'lpf', 'on']) ring(stage, `f${n}-${k}`, k === 'on' ? u.on : u.mode === k);
+    }
+    const xa = A.xfAssign;
+    for (const [n, id] of [['1', 'A'], ['2', 'B']]) {
+      lever(stage, `ch${n}-filt`, FILT_POS[X.assign[id]]);
+      lever(stage, `ch${n}-xfa`, XFA_POS[xa[id]]);
+    }
+  }
+  function ring(stage, ctl, on) {
+    setOnce(`r${ctl}`, on, () => {
+      const g = $(`.hw-mixer [data-ctl="${ctl}"]`, stage); if (!g) return;
+      const r = $('.ring', g); const glow = $('.glow', g);
+      r.setAttribute('stroke', on ? r.dataset.col : '#111'); if (glow) glow.setAttribute('opacity', on ? '0.45' : '0');
+    });
+  }
+  function lever(stage, ctl, pos) {
+    setOnce(`l${ctl}`, pos, () => {
+      const g = $(`.hw-mixer [data-ctl="${ctl}"]`, stage); if (!g) return;
+      $('.lever', g).setAttribute('transform', `rotate(${pos * 35} ${g.dataset.cx} ${g.dataset.cy})`);
+    });
+  }
+
   /** Vu-mètre de 16 LED : 0 dBFS du signal ≈ +6 sur la graduation (comme une table qui a de la marge), retombée douce. */
   function meter(ctl, pk, dt) {
     const db = pk > 0 ? 20 * Math.log10(pk) + 6 : -60;
@@ -340,9 +416,10 @@
     const lvl = db > prev ? db : Math.max(db, prev - 24 * dt);
     st.meters[ctl] = lvl;
     const lit = Math.max(0, Math.min(16, Math.floor((lvl + 33) / 3) + 1));
-    setOnce(`m${ctl}`, lit, (n) => {
+    setOnce(`m${ctl}`, mounted === 'xonarr' ? Math.round(lvl) : lit, (n) => {
       const g = $(`.hw-mixer [data-ctl="${ctl}"]`); if (!g) return;
-      for (const r of g.querySelectorAll('.seg')) r.setAttribute('opacity', Number(r.dataset.i) < n ? '1' : '0.16');
+      // Pionarr : 16 LED numérotées (data-i) ; Xonarr : une LED par seuil en dB (data-db), éteinte = LED noire
+      for (const r of g.querySelectorAll('.seg')) r.setAttribute('opacity', r.dataset.db !== undefined ? (lvl >= Number(r.dataset.db) ? '1' : '0.07') : Number(r.dataset.i) < n ? '1' : '0.16');
     });
   }
 
