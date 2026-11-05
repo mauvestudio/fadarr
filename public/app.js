@@ -2362,11 +2362,11 @@
           a.href = URL.createObjectURL(blob); a.download = 'rekordbox.xml'; a.click();
           setTimeout(() => URL.revokeObjectURL(a.href), 5000);
           $('#modal').close();
-          const n = Number(res.headers.get('X-Mixarr-Tracks')) || 0;
-          const missing = Number(res.headers.get('X-Mixarr-Missing')) || 0;
-          const noBpm = Number(res.headers.get('X-Mixarr-Nobpm')) || 0;
-          const noGrid = Number(res.headers.get('X-Mixarr-Nogrid')) || 0;
-          const cues = Number(res.headers.get('X-Mixarr-Cues')) || 0;
+          const n = Number(res.headers.get('X-Fadarr-Tracks')) || 0;
+          const missing = Number(res.headers.get('X-Fadarr-Missing')) || 0;
+          const noBpm = Number(res.headers.get('X-Fadarr-Nobpm')) || 0;
+          const noGrid = Number(res.headers.get('X-Fadarr-Nogrid')) || 0;
+          const cues = Number(res.headers.get('X-Fadarr-Cues')) || 0;
           const warn = [];
           if (noBpm) warn.push(`<li class="bad">${t('{n} morceaux sans BPM : les CDJ ne poseront ni grille ni SYNC dessus. Charge-les dans fadarr et clique sur le BPM pour le poser.', { n: noBpm })}</li>`);
           if (noGrid) warn.push(`<li>${t("{n} morceaux ont un BPM mais pas de grille précise : la grille est posée au premier temps connu. Vérifie-les dans Rekordbox (double-clic sur la grille pour recaler si besoin).", { n: noGrid })}</li>`);

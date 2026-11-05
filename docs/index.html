@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fadarr — free web DJ app: the best of Rekordbox &amp; Traktor in your browser</title>
+<meta name="description" content="fadarr is a free, self-hosted web DJ app. Prep your DJ sets from your NAS in the browser: Traktor and Rekordbox import, beat grids, hot cues, loops, and USB sticks for CDJ players.">
+<meta property="og:title" content="fadarr — the best of Rekordbox &amp; Traktor, in your browser">
+<meta property="og:description" content="Free, self-hosted web DJ app: prep your sets from your NAS and export USB sticks for CDJ players.">
+<meta property="og:image" content="banner.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"fadarr","applicationCategory":"MultimediaApplication","operatingSystem":"Docker, Linux, Unraid, Synology (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"description":"Free, self-hosted web DJ app to prep DJ sets from a NAS: Traktor and Rekordbox import, beat grids, cues, loops, CDJ USB export.","license":"https://www.gnu.org/licenses/gpl-2.0.html","url":"https://mauvestudio.github.io/fadarr/"}
+</script>
+<style>
+  :root {
+    --bg: #07090b; --bg2: #0d1114; --line: #1c2328; --text: #e9edf0; --mute: #8f9aa3;
+    --gold: #ffc23d; --amber: #ff9a1f; --teal: #0f3b3a;
+    --grad: linear-gradient(180deg, #ffd65a 0%, #ffb02e 55%, #ff8a1c 100%);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+    background: radial-gradient(60% 50% at 80% 0%, rgb(20 90 85 / .35), transparent 70%), radial-gradient(50% 40% at 10% 30%, rgb(120 50 20 / .18), transparent 70%), var(--bg); }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px); background: rgb(7 9 11 / .7); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+  nav img { height: 26px; display: block; }
+  nav .links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--mute); }
+  nav .links a { text-decoration: none; } nav .links a:hover { color: var(--text); }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .lang button { background: none; border: 0; color: var(--mute); font: 600 12px 'JetBrains Mono', monospace; padding: 6px 10px; cursor: pointer; }
+  .lang button.on { background: var(--text); color: var(--bg); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; transition: transform .12s, background .12s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.gold { background: var(--grad); color: #1a1205; box-shadow: 0 8px 30px rgb(255 154 31 / .25); }
+  .btn.ghost { border: 1px solid #2c363d; color: var(--text); }
+  .btn.small { padding: 8px 14px; font-size: 13px; }
+  .btn svg { width: 18px; height: 18px; }
+
+  header.hero { padding: 96px 0 40px; text-align: center; }
+  .kicker { display: inline-block; font: 600 12px 'JetBrains Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); border: 1px solid rgb(255 194 61 / .3); padding: 6px 12px; border-radius: 999px; margin-bottom: 26px; }
+  h1 { font-size: clamp(38px, 6.4vw, 72px); line-height: 1.04; letter-spacing: -.035em; margin: 0 auto 22px; max-width: 900px; font-weight: 700; }
+  h1 em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { font-size: 19px; color: #b9c2c9; max-width: 680px; margin: 0 auto 34px; }
+  .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .shot { margin: 64px auto 0; max-width: 1080px; border-radius: 14px; border: 1px solid #222b31; overflow: hidden; background: #000;
+    box-shadow: 0 40px 120px rgb(0 0 0 / .8), 0 0 0 1px rgb(255 255 255 / .02), 0 -20px 80px rgb(255 160 40 / .06); }
+  .shot .bar { display: flex; gap: 7px; padding: 11px 14px; background: #111518; border-bottom: 1px solid #1c2328; }
+  .shot .bar i { width: 11px; height: 11px; border-radius: 50%; background: #2a3237; }
+  .shot img { display: block; width: 100%; height: auto; }
+
+  .facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 34px; padding: 34px 0; color: var(--mute); font: 500 13px 'JetBrains Mono', monospace; }
+  .facts span::before { content: "● "; color: var(--gold); }
+
+  section { padding: 90px 0; border-top: 1px solid var(--line); }
+  .eyebrow { font: 700 12px 'JetBrains Mono', monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+  h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.1; letter-spacing: -.03em; margin: 0 0 16px; }
+  .sub { color: var(--mute); font-size: 17px; max-width: 640px; margin: 0 0 48px; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: linear-gradient(180deg, #0f1417, #0b0f11); border: 1px solid var(--line); border-radius: 14px; padding: 26px; }
+  .card .ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: rgb(255 194 61 / .09); color: var(--gold); margin-bottom: 18px; }
+  .card .ic svg { width: 22px; height: 22px; }
+  .card h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--mute); font-size: 15px; }
+
+  .looks { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .look { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid #222b31; background: #0b0f11; }
+  .look img { display: block; width: 100%; height: auto; background: #000; }
+  .look figcaption { padding: 18px 20px 20px; color: var(--mute); font-size: 15px; }
+  .look figcaption b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
+  .next { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; font-size: 14px; color: var(--mute); }
+  .chip b { color: var(--text); }
+  .chip.soon { opacity: .6; } .chip small { font: 600 10px 'JetBrains Mono', monospace; color: var(--gold); margin-left: 4px; }
+
+  .steps { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; align-items: start; }
+  .step { display: flex; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .step:last-child { border-bottom: 0; }
+  .step b { font: 700 14px 'JetBrains Mono', monospace; color: var(--bg); background: var(--grad); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .step h3 { margin: 2px 0 4px; font-size: 17px; } .step p { margin: 0; color: var(--mute); font-size: 15px; }
+  pre { margin: 0; background: #050708; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; overflow-x: auto; font: 500 13.5px/1.75 'JetBrains Mono', monospace; color: #cfd6dc; }
+  pre .c { color: #5d6a73; } pre .k { color: var(--gold); }
+
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; }
+  details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  summary { cursor: pointer; font-weight: 600; font-size: 17px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  summary::after { content: "+"; color: var(--gold); font: 600 20px 'JetBrains Mono', monospace; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details p { color: var(--mute); margin: 10px 0 0; font-size: 15px; }
+
+  .final { text-align: center; padding: 110px 0; }
+  .final img { height: 56px; margin-bottom: 24px; }
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: #6b7780; font-size: 13px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+  footer p { margin: 0; max-width: 640px; }
+
+  @media (max-width: 860px) {
+    nav .links { display: none; } nav .wrap { gap: 12px; } nav .lang { margin-left: auto; }
+    .grid, .looks { grid-template-columns: 1fr; } .steps, .faq { grid-template-columns: 1fr; }
+    header.hero { padding-top: 64px; } section { padding: 64px 0; }
+    .wrap { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a href="#"><img src="logo.png" alt="fadarr"></a>
+  <div class="links">
+    <a href="#features" data-i18n="nFeatures">Features</a>
+    <a href="#looks" data-i18n="nLooks">Training looks</a>
+    <a href="#install" data-i18n="nInstall">Install</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <div class="lang"><button class="on" data-lang="en">EN</button><button data-lang="fr">FR</button></div>
+  <a class="btn ghost small" href="https://github.com/mauvestudio/fadarr"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="kicker" data-i18n="kicker">Free · open source · self-hosted</div>
+  <h1 data-i18n="h1">The best of Rekordbox &amp; Traktor. <em>In your browser.</em></h1>
+  <p class="lead" data-i18n="lead">Prep your DJ sets straight from your NAS: import your Traktor or Rekordbox library, set cues and loops on two decks, and export a USB stick your club's CDJs read cleanly.</p>
+  <div class="ctas">
+    <a class="btn gold" href="#install" data-i18n="cta1">Install with Docker</a>
+    <a class="btn ghost" href="https://github.com/mauvestudio/fadarr" data-i18n="cta2">View on GitHub</a>
+  </div>
+  <div class="shot"><div class="bar"><i></i><i></i><i></i></div><img src="app.jpg" alt="fadarr: two decks, colour waveforms, mixer and library in the browser" width="1680" height="840"></div>
+</div></header>
+
+<div class="wrap facts"><span>Docker</span><span>Unraid</span><span>Synology</span><span>Tailscale</span><span>CDJ-3000 · NXS2 · XDJ</span><span>GPL-2.0</span></div>
+
+<section id="features"><div class="wrap">
+  <div class="eyebrow" data-i18n="fEye">Features</div>
+  <h2 data-i18n="fH">Everything you need to prep a set.</h2>
+  <p class="sub" data-i18n="fSub">A small web app that lives next to your music. Use it from any browser on your network, at home or on the road.</p>
+  <div class="grid">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></div><h3 data-i18n="c1h">Your NAS, your library</h3><p data-i18n="c1p">Scans your music folder read-only. Folder tree, search, BPM and key filters, ratings and colours. Thousands of tracks scroll smoothly.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></svg></div><h3 data-i18n="c2h">Import Traktor or Rekordbox</h3><p data-i18n="c2p">Playlists, hot cues, memory cues, loops, beat grids and keys, matched to your files even with accents and typos.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2" width="10" height="7" rx="1"/><rect x="5" y="9" width="14" height="13" rx="2"/></svg></div><h3 data-i18n="c3h">USB sticks for CDJs</h3><p data-i18n="c3p">Writes the stick itself: audio, player database, grids, coloured cues and waveforms. Only what changed is rewritten.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg></div><h3 data-i18n="c4h">Play a stick directly</h3><p data-i18n="c4p">Plug in a friend's CDJ stick and jam: its playlists, cues and grids, played straight from the stick. Nothing is written to it.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2l2-6 3 12 3-9 2 5 2-2h4"/></svg></div><h3 data-i18n="c5h">Analysis by Mixxx</h3><p data-i18n="c5p">BPM, beat grid, key, loudness (LUFS) and first sound, with Mixxx's open-source algorithms. Never overwrites a grid you set.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4v16M12 8v8M18 6v12"/></svg></div><h3 data-i18n="c6h">Same level, every track</h3><p data-i18n="c6p">Loudness matching brings analysed tracks to one target level, so you prep with your ears, not the gain knob.</p></div>
+  </div>
+</div></section>
+
+<section id="looks"><div class="wrap">
+  <div class="eyebrow" data-i18n="lEye">Training looks</div>
+  <h2 data-i18n="lH">Practise on the gear you'll play.</h2>
+  <p class="sub" data-i18n="lSub">One engine, several faces. Switch look mid-track, the music keeps playing. Every look is drawn from scratch, with no brand logos.</p>
+  <div class="looks">
+    <figure class="look"><img src="look-pionarr.jpg" alt="Pionarr + Deckarr look" width="1600" height="1001" loading="lazy"><figcaption><b>Pionarr + Deckarr</b><span data-i18n="lp">A 2-channel club mixer between two flagship players. The browse knob scrolls the library, Sound Color FX on the COLOR knobs.</span></figcaption></figure>
+    <figure class="look"><img src="look-xonarr.jpg" alt="Xonarr + Deckarr look" width="1600" height="1000" loading="lazy"><figcaption><b>Xonarr + Deckarr</b><span data-i18n="lx">A British 4-band mixer with two VCF filters (HPF / BPF / LPF, resonance, crunch) assigned per channel.</span></figcaption></figure>
+  </div>
+  <div class="next"><span class="chip"><b>Traktarr</b> <span data-i18n="lt">the default look, shown above</span></span><span class="chip soon">Rekordarr <small data-i18n="soon">SOON</small></span><span class="chip soon">Vinylarr <small data-i18n="soon">SOON</small></span></div>
+</div></section>
+
+<section id="install"><div class="wrap steps">
+  <div>
+    <div class="eyebrow" data-i18n="iEye">Install</div>
+    <h2 data-i18n="iH">Running in two minutes.</h2>
+    <div class="step"><b>1</b><div><h3 data-i18n="s1h">Run it next to your music</h3><p data-i18n="s1p">Docker on Unraid, Synology or any Linux box. Your music folder is mounted read-only.</p></div></div>
+    <div class="step"><b>2</b><div><h3 data-i18n="s2h">Open your browser</h3><p data-i18n="s2p">On your network, or anywhere over Tailscale. Optional password.</p></div></div>
+    <div class="step"><b>3</b><div><h3 data-i18n="s3h">Prep, then export</h3><p data-i18n="s3p">Back to Rekordbox, or straight to a USB stick for the club.</p></div></div>
+  </div>
+  <pre><span class="c"># get fadarr</span>
+<span class="k">git</span> clone https://github.com/mauvestudio/fadarr
+<span class="k">cd</span> fadarr
+
+<span class="c"># point it at your music (read-only)</span>
+<span class="k">echo</span> "FADARR_MUSIC=/mnt/user/music" &gt; .env
+
+<span class="c"># start it</span>
+<span class="k">docker</span> compose up -d
+
+<span class="c"># then open http://your-nas:3010</span></pre>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <div class="eyebrow">FAQ</div>
+  <h2 data-i18n="qH">Questions.</h2>
+  <div class="faq">
+    <details><summary data-i18n="q1">Is fadarr free?</summary><p data-i18n="a1">Yes. It's open source under the GPL, and it runs on your own hardware: no account, no subscription.</p></details>
+    <details><summary data-i18n="q2">Does it touch my audio files?</summary><p data-i18n="a2">Never. The music folder is mounted read-only. Everything fadarr knows lives in one file in its data folder.</p></details>
+    <details><summary data-i18n="q3">Which players read its USB sticks?</summary><p data-i18n="a3">CDJ-3000, CDJ-2000NXS2 and XDJ players. The stick export is still experimental: test it on a real player before a gig.</p></details>
+    <details><summary data-i18n="q4">Do I still need Rekordbox or Traktor?</summary><p data-i18n="a4">No, but fadarr plays well with both: import your library from either, and export back to Rekordbox whenever you want.</p></details>
+  </div>
+</div></section>
+
+<div class="final wrap">
+  <img src="logo.png" alt="fadarr">
+  <h2 data-i18n="endH">Your next set starts on your NAS.</h2>
+  <div class="ctas" style="margin-top:28px"><a class="btn gold" href="https://github.com/mauvestudio/fadarr" data-i18n="cta2">View on GitHub</a></div>
+</div>
+
+<footer><div class="wrap">
+  <p data-i18n="legal">fadarr is an independent project, not affiliated with AlphaTheta / Pioneer DJ, Native Instruments or Allen &amp; Heath. Rekordbox, Traktor and CDJ are trademarks of their owners.</p>
+  <p>GPL-2.0 · <span data-i18n="made">Made in Paris by</span> Mauve</p>
+</div></footer>
+
+<script>
+  const FR = {
+    nFeatures: 'Fonctions', nLooks: "Looks d'entraînement", nInstall: 'Installer',
+    kicker: 'Gratuit · open source · auto-hébergé',
+    h1: 'Le meilleur de Rekordbox et Traktor. <em>Dans ton navigateur.</em>',
+    lead: "Prépare tes sets directement depuis ton NAS : importe ta bibliothèque Traktor ou Rekordbox, pose tes cues et tes boucles sur deux platines, et exporte une clé USB que les CDJ du club lisent sans broncher.",
+    cta1: 'Installer avec Docker', cta2: 'Voir sur GitHub',
+    fEye: 'Fonctions', fH: 'Tout pour préparer un set.', fSub: "Une petite appli web qui vit à côté de ta musique. Depuis n'importe quel navigateur de ton réseau, chez toi ou en déplacement.",
+    c1h: 'Ton NAS, ta bibliothèque', c1p: 'Lit ton dossier musique sans jamais y écrire. Arborescence, recherche, filtres BPM et tonalité, notes et couleurs. Des milliers de morceaux défilent sans ramer.',
+    c2h: 'Import Traktor ou Rekordbox', c2p: 'Playlists, hot cues, memory cues, boucles, grilles et tonalités, retrouvés dans tes fichiers même avec accents et fautes.',
+    c3h: 'Clés USB pour CDJ', c3p: 'Écrit la clé elle-même : audio, base des platines, grilles, cues en couleur et formes d’onde. Seul ce qui a changé est réécrit.',
+    c4h: 'Joue une clé en direct', c4p: "Branche la clé CDJ d'un ami et fais un B2B : ses playlists, cues et grilles, lus directement sur la clé. Rien n'y est écrit.",
+    c5h: 'Analyse signée Mixxx', c5p: 'BPM, grille, tonalité, volume (LUFS) et premier son, avec les algorithmes open source de Mixxx. Ne remplace jamais une grille posée à la main.',
+    c6h: 'Même niveau pour tous', c6p: 'Le volume harmonisé amène les morceaux analysés au même niveau : tu prépares à l’oreille, pas au potard de gain.',
+    lEye: "Looks d'entraînement", lH: 'Entraîne-toi sur le matos que tu vas jouer.', lSub: 'Un moteur, plusieurs façades. Change de look en plein morceau, la musique continue. Tout est redessiné, sans aucun logo de marque.',
+    soon: 'BIENTÔT',
+    lp: 'Une table de club 2 voies entre deux platines haut de gamme. Le sélecteur parcourt la bibliothèque, Sound Color FX sur les potards COLOR.',
+    lx: 'Une table anglaise 4 bandes avec deux filtres VCF (HPF / BPF / LPF, résonance, crunch) affectés voie par voie.',
+    lt: 'le look par défaut, en haut de page',
+    iEye: 'Installer', iH: 'En route en deux minutes.',
+    s1h: 'Lance-le à côté de ta musique', s1p: 'Docker sur Unraid, Synology ou n’importe quel Linux. Ton dossier musique est monté en lecture seule.',
+    s2h: 'Ouvre ton navigateur', s2p: 'Sur ton réseau, ou de partout via Tailscale. Mot de passe en option.',
+    s3h: 'Prépare, puis exporte', s3p: 'Vers Rekordbox, ou directement sur une clé USB pour le club.',
+    qH: 'Questions.',
+    q1: 'fadarr est-il gratuit ?', a1: 'Oui. Il est open source sous licence GPL et tourne sur ton propre matériel : pas de compte, pas d’abonnement.',
+    q2: 'Est-ce qu’il modifie mes fichiers audio ?', a2: 'Jamais. Le dossier musique est monté en lecture seule. Tout ce que fadarr sait tient dans un seul fichier de son dossier de données.',
+    q3: 'Quelles platines lisent ses clés USB ?', a3: 'Les CDJ-3000, CDJ-2000NXS2 et les XDJ. L’export de clé est encore expérimental : teste-la sur une vraie platine avant un set.',
+    q4: 'J’ai encore besoin de Rekordbox ou Traktor ?', a4: 'Non, mais fadarr s’entend avec les deux : importe ta bibliothèque depuis l’un ou l’autre, et réexporte vers Rekordbox quand tu veux.',
+    endH: 'Ton prochain set commence sur ton NAS.',
+    legal: 'fadarr est un projet indépendant, sans lien avec AlphaTheta / Pioneer DJ, Native Instruments ou Allen & Heath. Rekordbox, Traktor et CDJ sont des marques de leurs propriétaires.',
+    made: 'Fait à Paris par'
+  };
+  const EN = {}; document.querySelectorAll('[data-i18n]').forEach((el) => { EN[el.dataset.i18n] = el.innerHTML; });
+  let lang = 'en';
+  function setLang(l) {
+    lang = l; document.documentElement.lang = l;
+    document.querySelectorAll('[data-i18n]').forEach((el) => { const v = (l === 'fr' ? FR : EN)[el.dataset.i18n]; if (v) el.innerHTML = v; });
+    document.querySelectorAll('.lang button').forEach((b) => b.classList.toggle('on', b.dataset.lang === l));
+    try { localStorage.setItem('fadarr-site-lang', l); } catch (e) {}
+  }
+  document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+  let saved = null; try { saved = localStorage.getItem('fadarr-site-lang'); } catch (e) {}
+  setLang(saved || ((navigator.language || '').startsWith('fr') ? 'fr' : 'en'));
+</script>
+</body>
+</html>

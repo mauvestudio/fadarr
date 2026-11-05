@@ -309,11 +309,11 @@ app.post('/api/export/rekordbox', wrap(async (req, res) => {
   console.log(`📤 Export Rekordbox : ${rep.playlists} playlist(s), ${rep.tracks} morceau(x), ${rep.withGrid} avec grille.`);
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="rekordbox.xml"');
-  res.setHeader('X-Mixarr-Tracks', String(rep.tracks));
-  res.setHeader('X-Mixarr-Missing', String(rep.missing.length));
-  res.setHeader('X-Mixarr-Nobpm', String(rep.noBpmCount));
-  res.setHeader('X-Mixarr-Nogrid', String(rep.noGrid));
-  res.setHeader('X-Mixarr-Cues', String(rep.withCues));
+  res.setHeader('X-Fadarr-Tracks', String(rep.tracks));
+  res.setHeader('X-Fadarr-Missing', String(rep.missing.length));
+  res.setHeader('X-Fadarr-Nobpm', String(rep.noBpmCount));
+  res.setHeader('X-Fadarr-Nogrid', String(rep.noGrid));
+  res.setHeader('X-Fadarr-Cues', String(rep.withCues));
   res.send(rep.xml);
 }));
 
