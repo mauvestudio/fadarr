@@ -119,6 +119,8 @@
       'Chargement…': 'Loading…',
       'Décodage…': 'Decoding…',
       'Analyse…': 'Analyzing…',
+      'Charge un morceau : sélecteur ou glisser-déposer': 'Load a track: browse knob or drag and drop',
+      'Charge un morceau depuis la bibliothèque (A / B)': 'Load a track from the library (A / B)',
       'Deck {id} : {msg}': 'Deck {id}: {msg}',
       "CUE : à l'arrêt, pose le point de départ ; en lecture, y revient": 'CUE: when stopped, sets the start point; while playing, jumps back to it',
       'Lecture / pause': 'Play / pause',

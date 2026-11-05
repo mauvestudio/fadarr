@@ -78,6 +78,7 @@
   .look img { display: block; width: 100%; height: auto; background: #000; }
   .look figcaption { padding: 18px 20px 20px; color: var(--mute); font-size: 15px; }
   .look figcaption b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
+  .look.wide { grid-column: 1 / -1; }
   .next { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
   .chip { border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; font-size: 14px; color: var(--mute); }
   .chip b { color: var(--text); }
@@ -160,8 +161,9 @@
   <div class="looks">
     <figure class="look"><img src="look-pionarr.jpg" alt="Pionarr + Deckarr look" width="1600" height="1001" loading="lazy"><figcaption><b>Pionarr + Deckarr</b><span data-i18n="lp">A 2-channel club mixer between two flagship players. The browse knob scrolls the library, Sound Color FX on the COLOR knobs.</span></figcaption></figure>
     <figure class="look"><img src="look-xonarr.jpg" alt="Xonarr + Deckarr look" width="1600" height="1000" loading="lazy"><figcaption><b>Xonarr + Deckarr</b><span data-i18n="lx">A British 4-band mixer with two VCF filters (HPF / BPF / LPF, resonance, crunch) assigned per channel.</span></figcaption></figure>
+    <figure class="look wide"><img src="look-technicarr.jpg" alt="Technicarr + Xonarr look" width="1600" height="1000" loading="lazy"><figcaption><b>Technicarr + Xonarr</b><span data-i18n="ltc">Two direct-drive vinyl turntables: drop the needle anywhere, scratch the record forwards and backwards, watch the strobe dots lock in.</span></figcaption></figure>
   </div>
-  <div class="next"><span class="chip"><b>Traktarr</b> <span data-i18n="lt">the default look, shown above</span></span><span class="chip soon">Rekordarr <small data-i18n="soon">SOON</small></span><span class="chip soon">Vinylarr <small data-i18n="soon">SOON</small></span></div>
+  <div class="next"><span class="chip"><b>Traktarr</b> <span data-i18n="lt">the default look, shown above</span></span><span class="chip soon">Rekordarr <small data-i18n="soon">SOON</small></span></div>
 </div></section>
 
 <section id="install"><div class="wrap steps">
@@ -226,6 +228,7 @@
     lp: 'Une table de club 2 voies entre deux platines haut de gamme. Le sélecteur parcourt la bibliothèque, Sound Color FX sur les potards COLOR.',
     lx: 'Une table anglaise 4 bandes avec deux filtres VCF (HPF / BPF / LPF, résonance, crunch) affectés voie par voie.',
     lt: 'le look par défaut, en haut de page',
+    ltc: 'Deux platines vinyle à entraînement direct : pose le diamant où tu veux, scratche le disque en avant et en arrière, regarde les points du strobo se figer.',
     iEye: 'Installer', iH: 'En route en deux minutes.',
     s1h: 'Lance-le à côté de ta musique', s1p: 'Docker sur Unraid, Synology ou n’importe quel Linux. Ton dossier musique est monté en lecture seule.',
     s2h: 'Ouvre ton navigateur', s2p: 'Sur ton réseau, ou de partout via Tailscale. Mot de passe en option.',

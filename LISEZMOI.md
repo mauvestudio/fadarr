@@ -58,6 +58,7 @@ Pour t'entraîner sur le matériel que tu vas jouer : le même moteur, plusieurs
 |---|---|---|
 | **Pionarr + Deckarr** | une table de club 2 voies entre deux platines haut de gamme | ✅ |
 | **Xonarr + Deckarr** | une table anglaise 4 bandes (2 voies) entre les mêmes platines | ✅ |
+| **Technicarr + Xonarr** | deux platines vinyle à entraînement direct autour de la table anglaise | ✅ |
 | **Traktarr** | Traktor (le look actuel, par défaut) | ✅ |
 | **Rekordarr** | Rekordbox | en cours |
 
@@ -66,6 +67,10 @@ Pour t'entraîner sur le matériel que tu vas jouer : le même moteur, plusieurs
 *Pionarr + Deckarr : tourne le sélecteur pour défiler dans la bibliothèque, appuie pour charger ; Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) sur les potards COLOR. Tout est redessiné : aucun logo ni visuel de marque.*
 
 ![Xonarr + Deckarr](docs/look-xonarr.jpg)
+
+![Technicarr + Xonarr](docs/look-technicarr.jpg)
+
+*Technicarr + Xonarr : un vrai vinyle — START · STOP avec la montée en vitesse et le frein du moteur, le diamant posé où on veut, levier CUE, scratch avant et arrière, pitch ±8 / ±16 (+ vers soi), 33 / 45, points du stroboscope, craquements. Hot cues et SYNC marchent toujours (le bras saute).*
 
 *Xonarr + Deckarr : EQ 4 bandes, deux filtres VCF (HPF / BPF / LPF, résonance, fréquence, crunch) affectés voie par voie, affectation du crossfader X / OFF / Y.*
 

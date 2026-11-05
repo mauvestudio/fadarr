@@ -227,6 +227,7 @@
     get duration() { return this.buffer ? this.buffer.duration : 0; }
 
     get position() {
+      if (this.vinyl) return this.vinyl.pos; // skin Technicarr : la position est celle du diamant sur le disque
       if (!this.playing) return this.offset;
       let p = this.offset + (ctx.currentTime - this.startedAt) * this.rate;
       if (this.loop && this.loop.active && p >= this.loop.end) {
@@ -309,10 +310,13 @@
 
     // ---------- transport ----------
     stopSource() {
+      if (this.vinyl) this.vinyl.stop(); // platine vinyle : frein du plateau
       if (this.source) { try { this.source.onended = null; this.source.stop(); } catch (e) { /* déjà arrêté */ } this.source.disconnect(); this.source = null; }
     }
 
     startAt(pos) {
+      // platine vinyle (skin Technicarr) : START lance le plateau, le bras vient se poser sur `pos` s'il était au repos
+      if (this.vinyl) { this.offset = pos; this.vinyl.start(pos); this.playing = true; return; }
       this.stopSource();
       const s = ctx.createBufferSource();
       s.buffer = this.buffer;
@@ -335,7 +339,7 @@
       if (!this.buffer) return;
       pos = Math.max(0, Math.min(pos, this.duration));
       if (this.loop && this.loop.active && (pos < this.loop.start || pos > this.loop.end)) this.loop.active = false;
-      if (this.playing) this.startAt(pos); else this.offset = pos;
+      if (this.playing) this.startAt(pos); else { this.offset = pos; if (this.vinyl) this.vinyl.locate(pos); }
       this.renderLoopBtns();
     }
 
@@ -1124,8 +1128,8 @@
     draw();
   }
 
-  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary', pionarr: 'Pionarr', xonarr: 'Xonarr' };
-  const HW_SKINS = ['pionarr', 'xonarr']; // skins « matériel » : façades dessinées (public/hwskin.js) posées sur le même moteur
+  const SKINS = { base: 'Base', analog: 'Analog', rotary: 'Rotary', pionarr: 'Pionarr', xonarr: 'Xonarr', technicarr: 'Technicarr' };
+  const HW_SKINS = ['pionarr', 'xonarr', 'technicarr']; // skins « matériel » : façades dessinées (public/hwskin.js) posées sur le même moteur
   function applySkin(name) {
     if (!SKINS[name]) name = 'base';
     document.body.dataset.skin = name;
@@ -2616,6 +2620,7 @@
   window.fadarr = { decks, library }; // pour le débogage dans la console
   // pour les skins matériel (public/hwskin.js) : même moteur, autre façade
   window.fadarrApp = { decks, library, soundColor, local, fmt, showKey, keyColor, t, toast, HOT_COLORS, PAD, get refDeck() { return refDeck; }, applySkin,
+    audio,
     get xfAssign() { return { ...xfAssign }; }, setXfAssign(id, v) { xfAssign[id] = v; applyCrossfader(); } };
   if (HW_SKINS.includes(document.body.dataset.skin) && window.fadarrHw) window.fadarrHw.mount(document.body.dataset.skin).catch(() => applySkin('base'));
 })();

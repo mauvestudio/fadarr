@@ -1,0 +1,846 @@
+<title>Platinarr</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Mise en page : la platine en grand sur un plan de travail sombre, la loupe du diamant et les commandes à côté.
+   Un seul univers (studio de nuit), donc une seule palette, posée explicitement. */
+:root {
+  --room: #0b0b0d;        /* le plan de travail */
+  --room-2: #151418;      /* cartes */
+  --line: #2c2830;
+  --ink: #ece8e4;
+  --muted: #9a929e;
+  --strobe: #5fb4ff;      /* lumière du stroboscope */
+  --warm: #ffcf8a;        /* lampe de la tête */
+  --led: #ff4d3a;
+  --f-display: "Michroma", "Eurostile", "Arial Black", sans-serif;
+  --f-body: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--room); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; }
+h1 b { font-weight: 400; color: #b9a0ff; -webkit-text-stroke: .6px #b9a0ff; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(18px, 2.4vw, 26px); letter-spacing: .06em; margin: 0; text-wrap: balance; }
+h1 small { font-family: var(--f-body); font-size: 13px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; margin-left: 10px; }
+.status { font-family: var(--f-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.status b { color: var(--ink); font-weight: 500; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.deck-box { position: relative; min-width: 0; }
+#deck { width: 100%; height: auto; display: block; touch-action: none; border-radius: 14px; background: transparent; }
+aside { display: grid; gap: 14px; }
+.card { background: var(--room-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+.card h2 { font-family: var(--f-display); font-size: 11px; font-weight: 400; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0; }
+#loupe { width: 100%; max-width: 240px; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; display: block; background: #050506; max-width: 100%; }
+.loupe-cap { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: center; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+button, .file { font: 500 13px/1 var(--f-body); letter-spacing: .04em; color: var(--ink); background: #262229; border: 1px solid #3a3540;
+  border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+button:hover, .file:hover { background: #2f2a33; }
+button:focus-visible, .file:focus-within { outline: 2px solid var(--strobe); outline-offset: 2px; }
+button[aria-pressed="true"] { background: #33303a; border-color: var(--strobe); color: #fff; }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file { position: relative; display: inline-flex; align-items: center; }
+.seg { display: inline-flex; border: 1px solid #3a3540; border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+dt { color: var(--muted); }
+dd { margin: 0; font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.tips { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+.tips b { color: var(--ink); font-weight: 500; }
+.track { font-size: 13px; color: var(--muted); min-height: 1.4em; overflow-wrap: anywhere; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>platin<b>arr</b><small>direct drive · DD-1</small></h1>
+    <div class="status" id="status" aria-live="polite">Clique la platine pour réveiller le son</div>
+  </header>
+
+  <div class="main">
+    <div class="deck-box"><canvas id="deck" width="1000" height="760" aria-label="Platine vinyle interactive"></canvas></div>
+
+    <aside>
+      <section class="card">
+        <h2>Le diamant</h2>
+        <canvas id="loupe" width="440" height="440" aria-label="Vue rapprochée du diamant dans le sillon"></canvas>
+        <div class="loupe-cap" id="loupeCap">bras au repos</div>
+      </section>
+
+      <section class="card">
+        <h2>Bras</h2>
+        <div class="row">
+          <button id="autoBtn" type="button">Auto : poser le bras</button>
+          <button id="returnBtn" type="button" aria-pressed="true">Retour auto</button>
+        </div>
+        <div class="row">
+          <span class="seg" role="group" aria-label="Plage du pitch">
+            <button id="r8" type="button" aria-pressed="true">Pitch ±8</button><button id="r16" type="button" aria-pressed="false">±16</button>
+          </span>
+          <button id="lampBtn" type="button" aria-pressed="true">Lampe</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Disque</h2>
+        <div class="track" id="trackName">Démo « Grenier 124 », générée ici, 2 min</div>
+        <div class="row">
+          <button id="demoBtn" type="button">Remettre la démo</button>
+          <label class="file" for="fileIn">Charger un morceau…<input id="fileIn" type="file" accept="audio/*"></label>
+        </div>
+        <dl>
+          <dt>Vitesse</dt><dd id="dRpm">33⅓ tr/min</dd>
+          <dt>Pitch</dt><dd id="dPitch">+0,0 %</dd>
+          <dt>Tempo</dt><dd id="dBpm">124,0 BPM</dd>
+          <dt>Position</dt><dd id="dPos">0:00 / 2:00</dd>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2>Gestes</h2>
+        <ul class="tips">
+          <li><b>Bouton rond</b> en bas à gauche : allume la platine.</li>
+          <li><b>Start · Stop</b> : lance ou freine le plateau. Raccourci : espace.</li>
+          <li><b>Glisse la tête de lecture</b> sur le disque pour poser le diamant où tu veux.</li>
+          <li><b>Levier CUE</b> : lève ou pose le bras en douceur.</li>
+          <li><b>Attrape le vinyle</b> pour scratcher, avant ou arrière.</li>
+          <li><b>Fader de pitch</b> : regarde les points du strobo s'arrêter sur la bonne ligne.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ======================================================================= géométrie (unités logiques, plateau 1000 × 760)
+const W = 1000, H = 760;
+const C = { x: 400, y: 380 };          // centre du plateau
+const PR = 334, RR = 300, LABEL = 96;  // plateau, disque, étiquette
+const P = { x: 832, y: 172 }, L = 470;  // pivot du bras, longueur pivot → diamant
+const R_OUT = 288, R_END = 122, R_RUN = 108, R_EDGE = 297;   // sillon : début, fin du morceau, sillon fermé, bord
+const TH_REST = 86 * Math.PI / 180, TH_MIN = 83 * Math.PI / 180, TH_MAX = 146 * Math.PI / 180;
+const OMEGA0 = 33.3333 / 60 * 2 * Math.PI;   // rad/s à 33⅓
+const KNOB = { x: 96, y: 580, r: 31 }, STARTSTOP = { x: 38, y: 636, w: 124, h: 96 };
+const SP33 = { x: 180, y: 684, w: 68, h: 26 }, SP45 = { x: 180, y: 714, w: 68, h: 26 };
+const PITCH = { x: 950, y0: 318, y1: 690 }, RESET = { x: 893, y: 700, r: 15 };
+const CUE = { x: 912, y: 262 }, LAMP = { x: 748, y: 108, r: 14 };
+const STROBE_ANG = Math.atan2(KNOB.y - C.y, KNOB.x - C.x);
+const STROBE_ROWS = [{ r: 309, pct: 6 }, { r: 315.5, pct: 3 }, { r: 322, pct: 0 }, { r: 328.5, pct: -3 }];
+
+// ======================================================================= état
+const S = {
+  power: false, running: false, rpm: 33.3333, pitch: 0, range: 8,
+  omega: 0,            // vitesse du plateau (1 = 33⅓ nominal)
+  rec: 0,              // vitesse du disque (= plateau, sauf quand on le tient)
+  platAng: 0, recAng: 0,
+  armTh: TH_REST, armH: 0, armTarget: null, cueUp: false, lamp: true,
+  drag: null,          // "arm" | "rec" | "pitch"
+  held: null,          // scratch : { ang, t, vel }
+  pos: 0, dur: 120,    // position en secondes dans le morceau
+  needleDown: false, auto: null, autoReturn: true, wasInRunout: false, lastRev: 0,
+  hover: null, ssPressed: 0
+};
+
+// ======================================================================= le sillon : position ↔ rayon ↔ angle du bras
+const LEADIN = 2.2, RUNOUT = 2.0;
+function radiusOf(pos) {
+  if (pos < 0) return R_OUT + Math.min(1, -pos / LEADIN) * (R_EDGE - R_OUT);
+  if (pos <= S.dur) return R_OUT - pos / S.dur * (R_OUT - R_END);
+  return R_END - Math.min(1, (pos - S.dur) / RUNOUT) * (R_END - R_RUN);
+}
+function posOf(r) {
+  if (r > R_OUT) return -LEADIN * (r - R_OUT) / (R_EDGE - R_OUT);
+  if (r >= R_END) return (R_OUT - r) / (R_OUT - R_END) * S.dur;
+  return S.dur + RUNOUT * Math.min(1, (R_END - r) / (R_END - R_RUN));
+}
+const D_PC = Math.hypot(C.x - P.x, C.y - P.y), A_PC = Math.atan2(C.y - P.y, C.x - P.x);
+function thetaOf(r) { const c = (L * L + D_PC * D_PC - r * r) / (2 * L * D_PC); return A_PC - Math.acos(Math.max(-1, Math.min(1, c))); }
+function stylusAt(th) { return { x: P.x + L * Math.cos(th), y: P.y + L * Math.sin(th) }; }
+function radiusAtTheta(th) { const s = stylusAt(th); return Math.hypot(s.x - C.x, s.y - C.y); }
+
+// ======================================================================= audio
+let ctx = null, node = null, buf = null, level = 0;
+const A = { pos: 0, rate: 0, target: 0, gain: 0, gainT: 0, seek: null, thump: 0, tick: 0, click: 0, hissLp: 0, len: 0, loopLen: 0, sr: 48000 };
+function ensureAudio() {
+  if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  ctx = new AC();
+  A.sr = ctx.sampleRate;
+  buf = makeDemo(ctx.sampleRate);
+  setTrack(buf, 120, "Démo « Grenier 124 », générée ici, 2 min");
+  node = ctx.createScriptProcessor(1024, 0, 2);
+  node.onaudioprocess = process;
+  node.connect(ctx.destination);
+  setStatus();
+}
+function setTrack(b, dur, name) {
+  buf = b; A.loopLen = b.length; A.len = Math.round(dur * A.sr); S.dur = dur;
+  document.getElementById("trackName").textContent = name;
+  labelTitle = name.replace(/^Démo « (.*?) ».*$/, "$1").replace(/\.[a-z0-9]+$/i, "").slice(0, 26);
+  buildRecord();
+}
+function process(e) {
+  const L0 = e.outputBuffer.getChannelData(0), R0 = e.outputBuffer.getChannelData(1), n = L0.length;
+  if (!buf) { L0.fill(0); R0.fill(0); return; }
+  const dL = buf.getChannelData(0), dR = buf.numberOfChannels > 1 ? buf.getChannelData(1) : dL;
+  if (A.seek !== null) { A.pos = A.seek; A.seek = null; }
+  const ks = 1 - Math.exp(-1 / (0.006 * A.sr)), kg = 1 - Math.exp(-1 / (0.004 * A.sr));
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    A.rate += (A.target - A.rate) * ks;
+    A.gain += (A.gainT - A.gain) * kg;
+    let l = 0, r = 0;
+    const p = A.pos;
+    if (p >= 0 && p < A.len - 1) {
+      const q = p % A.loopLen, i0 = Math.floor(q), f = q - i0, i1 = (i0 + 1) % A.loopLen;
+      l = dL[i0] + (dL[i1] - dL[i0]) * f; r = dR[i0] + (dR[i1] - dR[i0]) * f;
+      // un vrai disque n'est pas parfait : on perd un peu d'aigus quand ça ralentit
+    }
+    const ar = Math.abs(A.rate);
+    // craquements et souffle, proportionnels à la vitesse sous le diamant
+    if (Math.random() < 0.00005 * ar + (A.click > 0 ? 0 : 0)) A.click = 0.08 + Math.random() * 0.25;
+    let noise = 0;
+    if (A.click > 0.001) { noise += (Math.random() * 2 - 1) * A.click; A.click *= 0.82; }
+    A.hissLp += ((Math.random() * 2 - 1) - A.hissLp) * 0.25;
+    noise += A.hissLp * 0.006 * Math.min(1.5, ar);
+    if (A.thump > 0.0005) { noise += Math.sin(A.thump * 900) * A.thump * 0.9 + (Math.random() * 2 - 1) * A.thump * 0.15; A.thump *= 0.9985; }
+    if (A.tick > 0.001) { noise += (Math.random() * 2 - 1) * A.tick; A.tick *= 0.7; }
+    const g = A.gain;
+    l = (l * Math.min(1, ar * 1.2) + noise) * g; r = (r * Math.min(1, ar * 1.2) + noise) * g;
+    L0[i] = Math.tanh(l * 0.9); R0[i] = Math.tanh(r * 0.9);
+    sum += L0[i] * L0[i];
+    A.pos += A.rate;
+    if (A.pos > A.len + RUNOUT * A.sr) A.pos = A.len + RUNOUT * A.sr;
+  }
+  level = level * 0.6 + Math.sqrt(sum / n) * 0.4;
+}
+
+// ---- la démo : 8 mesures à 124 BPM, générées ici (kick, charley, clap, basse, nappes)
+function makeDemo(sr) {
+  const bpm = 124, beat = 60 / bpm, bars = 8, len = Math.round(bars * 4 * beat * sr);
+  const b = ctx.createBuffer(2, len, sr), Lc = b.getChannelData(0), Rc = b.getChannelData(1);
+  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  const chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];   // Am, F, C, G
+  const bassN = [33, 29, 36, 31];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
+  let lpB = 0, lpP = 0, lpP2 = 0, hp = 0, hpPrev = 0, bp1 = 0, bp2 = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sr, bt = t / beat, bi = Math.floor(bt), ph = bt - bi, bar = Math.floor(bi / 4), ch = Math.floor(bar / 2) % 4;
+    // kick
+    const kt = ph * beat;
+    let k = Math.sin(2 * Math.PI * (48 * kt + 90 * (1 - Math.exp(-kt * 28)) / 28)) * Math.exp(-kt * 6.5) * 0.95;
+    // charley sur les contretemps
+    const ht = ((bt + 0.5) % 1) * beat, n = rnd();
+    hp = 0.62 * (hp + n - hpPrev); hpPrev = n;
+    const hh = hp * Math.exp(-ht * 55) * 0.22 + (((bt * 4) % 1) * beat < 0.02 ? hp * 0.05 : 0);
+    // clap sur 2 et 4
+    const cb = (bi % 2 === 1) ? kt : 9;
+    bp1 += 0.35 * (n - bp1); bp2 += 0.35 * (bp1 - bp2);
+    const clap = (bp1 - bp2) * (Math.exp(-cb * 22) + (cb > 0.012 ? Math.exp(-(cb - 0.012) * 30) * 0.6 : 0)) * 0.9;
+    // basse sur les contretemps, coupée par le kick
+    const bf = mtof(bassN[ch]), btp = ((bt + 0.5) % 1) * beat;
+    const saw = 2 * ((t * bf) % 1) - 1;
+    lpB += (saw - lpB) * 0.06;
+    const bass = lpB * Math.min(1, btp * 60) * Math.exp(-btp * 3.2) * 0.75;
+    // nappes : 3 dents de scie désaccordées par accord, filtre qui respire
+    let pad = 0;
+    chords[ch].forEach((m, j) => { const f = mtof(m + 12); pad += (2 * ((t * f * 1.003) % 1) - 1) + (2 * ((t * f * 0.997 + j * 0.3) % 1) - 1); });
+    const cut = 0.035 + 0.025 * Math.sin(t * 0.6);
+    lpP += (pad - lpP) * cut; lpP2 += (lpP - lpP2) * cut;
+    const duck = 0.45 + 0.55 * Math.min(1, ph * 3);
+    const padOut = lpP2 * 0.085 * duck;
+    const mono = k + bass + clap;
+    Lc[i] = mono + hh * 0.8 + padOut * 1.1;
+    Rc[i] = mono + hh * 1.2 + padOut * 0.9;
+  }
+  return b;
+}
+
+// ======================================================================= rendu
+const deck = document.getElementById("deck"), g = deck.getContext("2d");
+const loupe = document.getElementById("loupe"), lg = loupe.getContext("2d");
+let scale = 1, dpr = 1, base = null, recordImg = null, labelTitle = "Grenier 124";
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = deck.clientWidth || 1000;
+  deck.width = Math.round(w * dpr); deck.height = Math.round(w * H / W * dpr);
+  scale = deck.width / W;
+  const lw = loupe.clientWidth || 220; loupe.width = loupe.height = Math.round(lw * dpr);
+  buildBase(); buildRecord();
+}
+function off(w, h) { const c = document.createElement("canvas"); c.width = Math.ceil(w * scale); c.height = Math.ceil(h * scale); const x = c.getContext("2d"); x.scale(scale, scale); return [c, x]; }
+function rr(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+
+// ---- textures procédurales (aucune image externe) : grain, alu tourné, papier
+let grainTile = null;
+function grain(size, seed, soft) {
+  const c = document.createElement("canvas"); c.width = c.height = size; const x = c.getContext("2d"), im = x.createImageData(size, size);
+  let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < size * size; i++) { const v = soft ? 128 + (rnd() - 0.5) * 70 : (rnd() > 0.5 ? 255 : 0); im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+  x.putImageData(im, 0, 0); return c;
+}
+function grainFill(x, alpha, comp) {
+  if (!grainTile) grainTile = grain(256, 9, true);
+  x.save(); x.globalAlpha = alpha; x.globalCompositeOperation = comp || "overlay";
+  x.fillStyle = x.createPattern(grainTile, "repeat"); x.fill(); x.restore();
+}
+const LIGHT = -2.25;   // la lumière vient d'en haut à gauche (angle en radians)
+
+function buildBase() {
+  const [c, x] = off(W, H);
+  // ombre de la platine sur la table
+  x.save(); x.shadowColor = "rgba(0,0,0,.75)"; x.shadowBlur = 40; x.shadowOffsetY = 18;
+  rr(x, 6, 6, W - 12, H - 12, 22); x.fillStyle = "#0b0b0c"; x.fill(); x.restore();
+  // chant de la plinthe (épaisseur)
+  rr(x, 6, 6, W - 12, H - 12, 22);
+  const edge = x.createLinearGradient(0, 0, 0, H); edge.addColorStop(0, "#2a2a2d"); edge.addColorStop(1, "#050506");
+  x.fillStyle = edge; x.fill();
+  // dessus : noir mat, anodisé, très légèrement plus clair vers la lumière
+  rr(x, 10, 8, W - 20, H - 22, 19);
+  const top = x.createLinearGradient(0, 0, W * 0.7, H);
+  top.addColorStop(0, "#232326"); top.addColorStop(0.5, "#17171a"); top.addColorStop(1, "#101012");
+  x.fillStyle = top; x.fill();
+  grainFill(x, 0.55, "overlay");
+  rr(x, 10, 8, W - 20, H - 22, 19); grainFill(x, 0.06, "screen");
+  x.strokeStyle = "rgba(255,255,255,.10)"; x.lineWidth = 1.2; rr(x, 11, 9, W - 22, H - 24, 18); x.stroke();
+  // vis aux quatre coins
+  [[36, 32], [W - 36, 32], [36, H - 44], [W - 36, H - 44]].forEach(([sx, sy]) => {
+    const sg = x.createRadialGradient(sx - 1.5, sy - 1.5, 0.5, sx, sy, 6); sg.addColorStop(0, "#6a6a70"); sg.addColorStop(1, "#1a1a1d");
+    x.fillStyle = sg; x.beginPath(); x.arc(sx, sy, 5.5, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = "#0a0a0b"; x.lineWidth = 1.2; x.beginPath(); x.moveTo(sx - 3.5, sy); x.lineTo(sx + 3.5, sy); x.stroke();
+  });
+  // cuvette du plateau (ombre portée intérieure)
+  x.save(); x.beginPath(); x.arc(C.x, C.y, PR + 9, 0, Math.PI * 2); x.fillStyle = "#050506"; x.fill();
+  x.beginPath(); x.arc(C.x, C.y, PR + 9, 0, Math.PI * 2); x.strokeStyle = "rgba(255,255,255,.08)"; x.lineWidth = 1.5; x.stroke(); x.restore();
+  // plateau : bord en aluminium tourné (stries concentriques fixes, la lumière ne tourne pas)
+  x.save(); x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 16; x.shadowOffsetX = 5; x.shadowOffsetY = 8;
+  x.beginPath(); x.arc(C.x, C.y, PR, 0, Math.PI * 2); x.fillStyle = "#8a8c90"; x.fill(); x.restore();
+  for (let r = RR + 4; r <= PR; r += 0.6) {
+    const t = (r - RR) / (PR - RR), base = 120 + 70 * Math.sin(t * Math.PI) + ((r * 7.13) % 1) * 18;
+    x.strokeStyle = `rgb(${base | 0},${base + 2 | 0},${base + 6 | 0})`; x.lineWidth = 0.7;
+    x.beginPath(); x.arc(C.x, C.y, r, 0, Math.PI * 2); x.stroke();
+  }
+  if (x.createConicGradient) {   // reflet anisotrope typique de l'alu tourné
+    const cg = x.createConicGradient(LIGHT, C.x, C.y);
+    [[0, .0], [0.04, .55], [0.09, 0], [0.46, 0], [0.5, .35], [0.55, 0], [1, 0]].forEach(([o, a]) => cg.addColorStop(o, `rgba(255,255,255,${a})`));
+    x.beginPath(); x.arc(C.x, C.y, PR, 0, Math.PI * 2); x.arc(C.x, C.y, RR + 4, 0, Math.PI * 2, true); x.fillStyle = cg; x.fill("evenodd");
+    const cd = x.createConicGradient(LIGHT + 1.6, C.x, C.y);
+    [[0, 0], [0.12, .35], [0.25, 0], [1, 0]].forEach(([o, a]) => cd.addColorStop(o, `rgba(0,0,0,${a})`));
+    x.beginPath(); x.arc(C.x, C.y, PR, 0, Math.PI * 2); x.arc(C.x, C.y, RR + 4, 0, Math.PI * 2, true); x.fillStyle = cd; x.fill("evenodd");
+  }
+  x.strokeStyle = "rgba(255,255,255,.5)"; x.lineWidth = 1; x.beginPath(); x.arc(C.x, C.y, PR - 0.5, LIGHT - 0.9, LIGHT + 0.9); x.stroke();
+  // feutrine en caoutchouc sous le disque (visible au bord)
+  x.beginPath(); x.arc(C.x, C.y, RR + 4, 0, Math.PI * 2); x.fillStyle = "#121214"; x.fill();
+  // logement du bras : socle noir, bague chromée
+  x.save(); x.shadowColor = "rgba(0,0,0,.7)"; x.shadowBlur = 14; x.shadowOffsetX = 4; x.shadowOffsetY = 6;
+  x.beginPath(); x.arc(P.x, P.y, 88, 0, Math.PI * 2); x.fillStyle = "#1b1b1e"; x.fill(); x.restore();
+  x.beginPath(); x.arc(P.x, P.y, 88, 0, Math.PI * 2); grainFill(x, 0.4, "overlay");
+  const ring = x.createLinearGradient(P.x - 70, P.y - 70, P.x + 70, P.y + 70); ring.addColorStop(0, "#d9dadd"); ring.addColorStop(0.5, "#5b5d62"); ring.addColorStop(1, "#b4b6ba");
+  x.beginPath(); x.arc(P.x, P.y, 70, 0, Math.PI * 2); x.strokeStyle = ring; x.lineWidth = 3; x.stroke();
+  x.beginPath(); x.arc(P.x, P.y, 88, 0, Math.PI * 2); x.strokeStyle = "rgba(255,255,255,.09)"; x.lineWidth = 1; x.stroke();
+  // repose-bras
+  const rest = stylusAt(TH_REST), rp = { x: rest.x - 22, y: rest.y - 46 };
+  x.save(); x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 8; x.shadowOffsetX = 3; x.shadowOffsetY = 4;
+  x.beginPath(); x.arc(rp.x, rp.y, 12, 0, Math.PI * 2); x.fillStyle = "#2a2a2e"; x.fill(); x.restore();
+  const rg = x.createRadialGradient(rp.x - 3, rp.y - 3, 1, rp.x, rp.y, 9); rg.addColorStop(0, "#c9cbcf"); rg.addColorStop(1, "#45474c");
+  x.beginPath(); x.arc(rp.x, rp.y, 8, 0, Math.PI * 2); x.fillStyle = rg; x.fill();
+  // fente du pitch (creusée)
+  rr(x, PITCH.x - 24, PITCH.y0 - 30, 48, PITCH.y1 - PITCH.y0 + 60, 9); x.fillStyle = "#0e0e10"; x.fill();
+  rr(x, PITCH.x - 24, PITCH.y0 - 30, 48, PITCH.y1 - PITCH.y0 + 60, 9); x.strokeStyle = "rgba(255,255,255,.06)"; x.stroke();
+  rr(x, PITCH.x - 3.5, PITCH.y0 - 10, 7, PITCH.y1 - PITCH.y0 + 20, 3.5); x.fillStyle = "#000"; x.fill();
+  for (let i = -8; i <= 8; i++) {
+    const y = PITCH.y0 + (PITCH.y1 - PITCH.y0) * (i + 8) / 16, big = i % 4 === 0;
+    x.fillStyle = big ? "rgba(235,235,240,.75)" : "rgba(235,235,240,.35)"; x.fillRect(PITCH.x - 38, y - 0.5, big ? 10 : 6, 1);
+  }
+  // gravures (sérigraphie blanche)
+  x.fillStyle = "rgba(240,240,244,.85)"; x.textAlign = "left";
+  x.font = "9px Michroma, sans-serif";
+  x.fillText("CUE", CUE.x - 12, CUE.y - 30);
+  x.fillText("RESET", RESET.x - 18, RESET.y + 32);
+  x.font = "8.5px IBM Plex Mono, monospace"; x.textAlign = "center"; x.fillText("PITCH ADJ.", PITCH.x, PITCH.y1 + 46);
+  // marque
+  x.textAlign = "left";
+  x.font = "300 21px Michroma, sans-serif"; const w1 = x.measureText("platin").width;
+  x.fillStyle = "rgba(240,240,244,.92)"; x.fillText("platin", 636, 714);
+  x.font = "700 21px Michroma, sans-serif"; x.fillStyle = "#e8e8ec"; x.fillText("arr", 636 + w1, 714);
+  x.font = "8px Michroma, sans-serif"; x.fillStyle = "rgba(240,240,244,.55)"; x.fillText("DIRECT DRIVE  ·  QUARTZ LOCK  ·  DD-1", 637, 732);
+  // repères du strobo
+  x.font = "8.5px IBM Plex Mono, monospace"; x.fillStyle = "rgba(240,240,244,.6)"; x.textAlign = "left";
+  ["+6", "+3", " 0", "−3"].forEach((t, i) => { x.beginPath(); x.arc(146, 618 + i * 11, i === 2 ? 2.4 : 1.5, 0, Math.PI * 2); x.fill(); x.fillText(t + (i === 2 ? " %" : ""), 154, 621 + i * 11); });
+  // cuvettes des boutons
+  rr(x, STARTSTOP.x - 5, STARTSTOP.y - 5, STARTSTOP.w + 10, STARTSTOP.h + 10, 8); x.fillStyle = "#050506"; x.fill();
+  rr(x, SP33.x - 4, SP33.y - 4, SP33.w + 8, SP45.y + SP45.h - SP33.y + 8, 6); x.fillStyle = "#050506"; x.fill();
+  base = c;
+}
+
+function buildRecord() {
+  if (!scale) return;
+  const [c, x] = off(RR * 2, RR * 2), cx = RR, cy = RR;
+  x.beginPath(); x.arc(cx, cy, RR, 0, Math.PI * 2); x.fillStyle = "#0a0a0b"; x.fill();
+  // sillons : bord lisse, plage du morceau (sillons serrés + passages calmes), sillon de fin lisse
+  let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let r = LABEL + 4; r < RR - 2; r += 0.55) {
+    const inTrack = r > R_END - 2 && r < R_OUT + 1;
+    const a = inTrack ? 0.035 + rnd() * 0.06 : 0.015 + rnd() * 0.01;
+    x.strokeStyle = `rgba(255,255,255,${a})`; x.lineWidth = 0.35; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+  }
+  [0.22, 0.47, 0.71].forEach(f => { const r = R_OUT - f * (R_OUT - R_END); x.strokeStyle = "rgba(0,0,0,.9)"; x.lineWidth = 2.6; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); });
+  // poussières (elles tournent avec le disque)
+  for (let i = 0; i < 70; i++) { const a = rnd() * Math.PI * 2, r = LABEL + 10 + rnd() * (RR - LABEL - 14); x.fillStyle = `rgba(255,255,255,${0.15 + rnd() * 0.35})`; x.fillRect(cx + r * Math.cos(a), cy + r * Math.sin(a), 0.6 + rnd(), 0.6); }
+  // bord du disque
+  x.strokeStyle = "rgba(255,255,255,.18)"; x.lineWidth = 1; x.beginPath(); x.arc(cx, cy, RR - 0.6, 0, Math.PI * 2); x.stroke();
+  // étiquette en papier (grain, encre)
+  x.save(); x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); x.clip();
+  const lab = x.createRadialGradient(cx, cy, 10, cx, cy, LABEL); lab.addColorStop(0, "#1b1b1e"); lab.addColorStop(1, "#141416");
+  x.fillStyle = lab; x.fillRect(0, 0, RR * 2, RR * 2);
+  x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); grainFill(x, 0.35, "overlay");
+  x.beginPath(); x.arc(cx, cy, LABEL - 5, 0, Math.PI * 2); x.strokeStyle = "#b9a0ff"; x.lineWidth = 1.2; x.stroke();
+  x.beginPath(); x.arc(cx, cy, LABEL - 9, 0, Math.PI * 2); x.strokeStyle = "rgba(185,160,255,.35)"; x.lineWidth = 0.6; x.stroke();
+  x.fillStyle = "#ece8f6"; x.textAlign = "center";
+  x.font = "300 19px Michroma, sans-serif"; const wA = x.measureText("platin").width; x.font = "700 19px Michroma, sans-serif"; const wB = x.measureText("arr").width;
+  x.font = "300 19px Michroma, sans-serif"; x.textAlign = "left"; x.fillText("platin", cx - (wA + wB) / 2, cy - 32);
+  x.font = "700 19px Michroma, sans-serif"; x.fillStyle = "#b9a0ff"; x.fillText("arr", cx - (wA + wB) / 2 + wA, cy - 32);
+  x.textAlign = "center"; x.fillStyle = "#ece8f6";
+  x.font = "600 12px IBM Plex Sans Condensed, sans-serif"; x.fillText(labelTitle, cx, cy + 38);
+  x.font = "8.5px Michroma, sans-serif"; x.fillStyle = "rgba(236,232,246,.7)"; x.fillText("FACE A  ·  33⅓ TR/MIN", cx, cy + 54);
+  x.font = "7.5px IBM Plex Mono, monospace"; x.fillText("CRÉPITE  ·  LC-001", cx, cy - 16);
+  x.restore();
+  x.beginPath(); x.arc(cx, cy, 5, 0, Math.PI * 2); x.fillStyle = "#000"; x.fill();
+  recordImg = c;
+}
+
+function drawStrobe(x) {
+  const lit = S.power;
+  STROBE_ROWS.forEach((row, ri) => {
+    const nDots = 90, step = Math.PI * 2 / nDots, rad = ri % 2 ? 1.9 : 2.4;
+    for (let k = 0; k < nDots; k++) {
+      const a0 = S.platAng + k * step;
+      let a = a0, inLight = false;
+      if (lit) {
+        const d = Math.atan2(Math.sin(a0 - STROBE_ANG), Math.cos(a0 - STROBE_ANG));
+        if (Math.abs(d) < 0.42) {
+          inLight = true;
+          const nominal = OMEGA0 * (1 + row.pct / 100) * (S.rpm / 33.3333) * strobeT;
+          a = a0 - nominal + Math.round(nominal / step) * step;   // vue stroboscopique
+        }
+      }
+      const px = C.x + row.r * Math.cos(a), py = C.y + row.r * Math.sin(a);
+      // trou percé dans l'alu : fond sombre, lèvre éclairée du côté opposé à la lumière
+      x.beginPath(); x.arc(px, py, rad, 0, Math.PI * 2);
+      x.fillStyle = inLight ? "rgba(185,228,255,.98)" : "#2b2c30"; x.fill();
+      if (!inLight) { x.beginPath(); x.arc(px + 0.6, py + 0.7, rad * 0.7, 0, Math.PI * 2); x.fillStyle = "rgba(255,255,255,.18)"; x.fill(); }
+    }
+  });
+}
+let strobeT = 0;
+
+function drawPlatter(x) {
+  drawStrobe(x);
+  if (S.power) {   // lueur du strobo
+    const lx = C.x + 318 * Math.cos(STROBE_ANG), ly = C.y + 318 * Math.sin(STROBE_ANG);
+    const gl = x.createRadialGradient(lx, ly, 0, lx, ly, 100);
+    gl.addColorStop(0, "rgba(95,180,255,.45)"); gl.addColorStop(1, "rgba(95,180,255,0)");
+    x.save(); x.globalCompositeOperation = "screen"; x.fillStyle = gl; x.beginPath(); x.arc(lx, ly, 100, 0, Math.PI * 2); x.fill(); x.restore();
+  }
+  // le disque qui tourne
+  x.save(); x.shadowColor = "rgba(0,0,0,.6)"; x.shadowBlur = 6; x.shadowOffsetY = 2;
+  x.translate(C.x, C.y); x.rotate(S.recAng); x.drawImage(recordImg, -RR, -RR, RR * 2, RR * 2); x.restore();
+  // reflets fixes du vinyle : bandes anisotropes dans l'axe de la lumière (elles ne tournent pas)
+  if (x.createConicGradient) {
+    const cg = x.createConicGradient(LIGHT, C.x, C.y);
+    [[0, 0], [0.025, .13], [0.05, .05], [0.08, 0], [0.47, 0], [0.5, .09], [0.53, 0], [1, 0]].forEach(([o, a]) => cg.addColorStop(o, `rgba(255,255,255,${a})`));
+    x.save(); x.beginPath(); x.arc(C.x, C.y, RR - 1, 0, Math.PI * 2); x.arc(C.x, C.y, LABEL, 0, Math.PI * 2, true);
+    x.globalCompositeOperation = "screen"; x.fillStyle = cg; x.fill("evenodd"); x.restore();
+  }
+  // axe chromé
+  const sg = x.createRadialGradient(C.x - 2, C.y - 2, 0, C.x, C.y, 6); sg.addColorStop(0, "#fff"); sg.addColorStop(1, "#6d6f74");
+  x.beginPath(); x.arc(C.x, C.y, 5.5, 0, Math.PI * 2); x.fillStyle = sg; x.fill();
+}
+
+function metalKnob(x, cx, cy, r) {
+  const kg = x.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+  kg.addColorStop(0, "#f4f5f6"); kg.addColorStop(0.6, "#a8abb0"); kg.addColorStop(1, "#5d6065");
+  x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = kg; x.fill();
+  if (x.createConicGradient) {
+    const cg = x.createConicGradient(LIGHT, cx, cy);
+    [[0, .35], [0.1, 0], [0.4, 0], [0.5, .25], [0.6, 0], [0.9, 0], [1, .35]].forEach(([o, a]) => cg.addColorStop(o, `rgba(255,255,255,${a})`));
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = cg; x.fill();
+  }
+}
+function drawControls(x) {
+  // bouton marche : molette crantée chromée, anneau lumineux
+  const k = KNOB;
+  if (S.power) { const gl = x.createRadialGradient(k.x, k.y, k.r, k.x, k.y, k.r + 20); gl.addColorStop(0, "rgba(95,180,255,.85)"); gl.addColorStop(1, "rgba(95,180,255,0)"); x.fillStyle = gl; x.beginPath(); x.arc(k.x, k.y, k.r + 20, 0, Math.PI * 2); x.fill(); }
+  x.save(); x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 8; x.shadowOffsetX = 3; x.shadowOffsetY = 5;
+  x.beginPath(); x.arc(k.x, k.y, k.r + 3, 0, Math.PI * 2); x.fillStyle = "#111"; x.fill(); x.restore();
+  for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2, l = 0.5 + 0.5 * Math.cos(a - LIGHT); x.strokeStyle = `rgb(${90 + 150 * l | 0},${92 + 150 * l | 0},${98 + 150 * l | 0})`; x.lineWidth = 2.6;
+    x.beginPath(); x.moveTo(k.x + (k.r - 6) * Math.cos(a), k.y + (k.r - 6) * Math.sin(a)); x.lineTo(k.x + (k.r + 1) * Math.cos(a), k.y + (k.r + 1) * Math.sin(a)); x.stroke(); }
+  metalKnob(x, k.x, k.y, k.r - 7);
+  const ka = S.power ? 0.9 : -0.2;
+  x.strokeStyle = "#1d1e21"; x.lineWidth = 2; x.beginPath(); x.moveTo(k.x, k.y); x.lineTo(k.x + (k.r - 12) * Math.cos(ka - Math.PI / 2), k.y + (k.r - 12) * Math.sin(ka - Math.PI / 2)); x.stroke();
+  x.font = "7.5px Michroma, sans-serif"; x.fillStyle = "rgba(240,240,244,.8)"; x.textAlign = "center";
+  x.fillText("OFF", k.x - 24, k.y - 40); x.fillText("ON", k.x + 28, k.y - 32);
+  // Start · Stop : grand carré noir satiné
+  const b = STARTSTOP, pr = S.ssPressed > 0 ? 2 : 0;
+  x.save(); if (!pr) { x.shadowColor = "rgba(0,0,0,.9)"; x.shadowBlur = 6; x.shadowOffsetY = 3; }
+  const bg = x.createLinearGradient(b.x, b.y, b.x + b.w, b.y + b.h); bg.addColorStop(0, "#3a3a3f"); bg.addColorStop(1, "#18181b");
+  rr(x, b.x, b.y + pr, b.w, b.h - pr, 5); x.fillStyle = bg; x.fill(); x.restore();
+  rr(x, b.x, b.y + pr, b.w, b.h - pr, 5); grainFill(x, 0.3, "overlay");
+  rr(x, b.x + 0.5, b.y + pr + 0.5, b.w - 1, b.h - pr - 1, 5); x.strokeStyle = "rgba(255,255,255,.14)"; x.lineWidth = 1; x.stroke();
+  x.fillStyle = "rgba(240,240,244,.9)"; x.font = "10px Michroma, sans-serif"; x.fillText("START · STOP", b.x + b.w / 2, b.y + b.h / 2 + 4 + pr);
+  // 33 / 45 avec témoins
+  [[SP33, S.rpm < 40], [SP45, S.rpm > 40]].forEach(([r, on]) => {
+    const gg = x.createLinearGradient(r.x, r.y, r.x, r.y + r.h); gg.addColorStop(0, "#343438"); gg.addColorStop(1, "#1a1a1d");
+    rr(x, r.x, r.y, r.w, r.h, 4); x.fillStyle = gg; x.fill(); x.strokeStyle = "rgba(255,255,255,.12)"; x.stroke();
+    x.fillStyle = "rgba(240,240,244,.9)"; x.textAlign = "left"; x.font = "10px Michroma, sans-serif"; x.fillText(r === SP33 ? "33" : "45", r.x + 9, r.y + 19);
+    rr(x, r.x + 40, r.y + 11, 20, 6, 2); x.fillStyle = on && S.power ? "#5fb4ff" : "#0c0c0e"; x.fill();
+    if (on && S.power) { x.save(); x.shadowColor = "#5fb4ff"; x.shadowBlur = 10; x.fill(); x.restore(); }
+  });
+  // pitch : curseur métal strié + LED du zéro
+  const py = PITCH.y0 + (PITCH.y1 - PITCH.y0) * (0.5 - S.pitch / (2 * S.range));
+  x.fillStyle = Math.abs(S.pitch) < 0.05 && S.power ? "#7dffa8" : "#1d2a22";
+  if (Math.abs(S.pitch) < 0.05 && S.power) { x.save(); x.shadowColor = "#7dffa8"; x.shadowBlur = 8; }
+  x.beginPath(); x.arc(PITCH.x - 31, (PITCH.y0 + PITCH.y1) / 2, 2.6, 0, Math.PI * 2); x.fill(); if (Math.abs(S.pitch) < 0.05 && S.power) x.restore();
+  x.save(); x.shadowColor = "rgba(0,0,0,.85)"; x.shadowBlur = 8; x.shadowOffsetY = 5;
+  const fg = x.createLinearGradient(0, py - 15, 0, py + 15); fg.addColorStop(0, "#f2f3f4"); fg.addColorStop(0.45, "#9ea1a6"); fg.addColorStop(0.55, "#808388"); fg.addColorStop(1, "#d9dadd");
+  rr(x, PITCH.x - 19, py - 15, 38, 30, 4); x.fillStyle = fg; x.fill(); x.restore();
+  x.fillStyle = "rgba(0,0,0,.35)"; for (let i = -11; i <= 11; i += 4) x.fillRect(PITCH.x - 15, py + i - 0.4, 30, 0.8);
+  x.fillStyle = "#111"; x.fillRect(PITCH.x - 17, py - 1, 34, 2);
+  x.font = "10px IBM Plex Mono, monospace"; x.fillStyle = "rgba(240,240,244,.85)"; x.textAlign = "center";
+  x.fillText("+" + S.range, PITCH.x, PITCH.y0 - 15); x.fillText("−" + S.range, PITCH.x, PITCH.y1 + 25);
+  // reset
+  x.save(); x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 5; x.shadowOffsetY = 3; x.beginPath(); x.arc(RESET.x, RESET.y, RESET.r, 0, Math.PI * 2); x.fillStyle = "#111"; x.fill(); x.restore();
+  metalKnob(x, RESET.x, RESET.y, RESET.r - 1);
+  // levier CUE
+  x.save(); x.translate(CUE.x, CUE.y);
+  x.fillStyle = "#0d0d0f"; rr(x, -13, -17, 26, 34, 5); x.fill(); x.strokeStyle = "rgba(255,255,255,.1)"; x.stroke();
+  x.rotate(S.cueUp ? -0.55 : 0.25);
+  x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 5; x.shadowOffsetY = 3;
+  const lv = x.createLinearGradient(0, -4, 0, 4); lv.addColorStop(0, "#f0f1f2"); lv.addColorStop(1, "#7d8085");
+  rr(x, -4, -4, 38, 8, 4); x.fillStyle = lv; x.fill(); x.fillStyle = "#0a0a0b"; x.beginPath(); x.arc(34, 0, 6.5, 0, Math.PI * 2); x.fill();
+  x.restore();
+  x.font = "8px IBM Plex Mono, monospace"; x.fillStyle = "rgba(240,240,244,.75)"; x.textAlign = "center"; x.fillText(S.cueUp ? "▲ levé" : "▼ posé", CUE.x + 10, CUE.y + 32);
+  // lampe escamotable
+  x.save(); x.translate(LAMP.x, LAMP.y);
+  x.fillStyle = "#0b0b0c"; x.beginPath(); x.arc(0, 0, LAMP.r, 0, Math.PI * 2); x.fill(); x.strokeStyle = "rgba(255,255,255,.12)"; x.stroke();
+  const on = S.lamp && S.power;
+  if (on) { x.shadowColor = "#ffd89a"; x.shadowBlur = 14; }
+  x.fillStyle = on ? "#ffe2ad" : "#3a3a3f"; x.beginPath(); x.arc(0, 0, 6, 0, Math.PI * 2); x.fill();
+  x.restore();
+}
+
+function tube(x, path, w) {   // tube chromé : bord sombre, corps, reflet net
+  path(); x.strokeStyle = "#2a2b2f"; x.lineWidth = w + 3; x.stroke();
+  path(); x.strokeStyle = "#8d9095"; x.lineWidth = w; x.stroke();
+  path(); x.strokeStyle = "#d7d9dc"; x.lineWidth = w * 0.55; x.stroke();
+  path(); x.strokeStyle = "rgba(255,255,255,.95)"; x.lineWidth = 1.4; x.stroke();
+}
+function drawArm(x) {
+  const th = S.armTh, h = S.armH, st = stylusAt(th);
+  const offA = th + 0.36, head = { x: st.x - 56 * Math.cos(offA), y: st.y - 56 * Math.sin(offA) };
+  const back = { x: P.x - 92 * Math.cos(th), y: P.y - 92 * Math.sin(th) };
+  if (S.lamp && S.power) {
+    const gl = x.createRadialGradient(st.x, st.y, 0, st.x, st.y, 130);
+    gl.addColorStop(0, "rgba(255,214,150,.26)"); gl.addColorStop(1, "rgba(255,214,150,0)");
+    x.save(); x.globalCompositeOperation = "screen"; x.fillStyle = gl; x.beginPath(); x.arc(st.x, st.y, 130, 0, Math.PI * 2); x.fill(); x.restore();
+  }
+  const path = () => {
+    x.beginPath(); x.moveTo(P.x, P.y);
+    const nx = -Math.sin(th), ny = Math.cos(th), d = Math.hypot(head.x - P.x, head.y - P.y);
+    x.bezierCurveTo(P.x + Math.cos(th) * d * 0.35 + nx * 26, P.y + Math.sin(th) * d * 0.35 + ny * 26,
+                    P.x + Math.cos(th) * d * 0.7 - nx * 22, P.y + Math.sin(th) * d * 0.7 - ny * 22, head.x, head.y);
+  };
+  // ombre portée : plus loin et plus floue quand le bras est levé
+  x.save(); x.translate(9 + h * 24, 12 + h * 26); x.globalAlpha = 0.55 - h * 0.2; x.strokeStyle = "#000"; x.lineWidth = 11; x.lineCap = "round";
+  x.filter = "blur(" + (2.5 + h * 6) + "px)"; path(); x.stroke();
+  x.save(); x.translate(head.x, head.y); x.rotate(offA); x.fillStyle = "#000"; x.fillRect(-6, -15, 72, 30); x.restore();
+  x.restore(); x.filter = "none";
+  // contrepoids strié
+  x.save(); x.translate(back.x, back.y); x.rotate(th);
+  x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 10; x.shadowOffsetX = 6; x.shadowOffsetY = 8;
+  const cw = x.createLinearGradient(0, -21, 0, 21); cw.addColorStop(0, "#f3f4f5"); cw.addColorStop(0.35, "#c6c8cb"); cw.addColorStop(0.6, "#6e7176"); cw.addColorStop(1, "#b5b7bb");
+  rr(x, -27, -21, 54, 42, 7); x.fillStyle = cw; x.fill(); x.shadowColor = "transparent";
+  x.fillStyle = "rgba(0,0,0,.45)"; for (let i = -23; i <= 23; i += 3) x.fillRect(i, -21, 1, 42);
+  x.fillStyle = "#0d0d0f"; x.fillRect(-27, -3, 54, 6);
+  x.restore();
+  x.lineCap = "round";
+  tube(x, () => { x.beginPath(); x.moveTo(back.x, back.y); x.lineTo(P.x, P.y); }, 8);
+  // cardan
+  x.save(); x.shadowColor = "rgba(0,0,0,.8)"; x.shadowBlur = 8; x.shadowOffsetX = 4; x.shadowOffsetY = 5;
+  x.beginPath(); x.arc(P.x, P.y, 34, 0, Math.PI * 2); x.fillStyle = "#121214"; x.fill(); x.restore();
+  metalKnob(x, P.x, P.y, 30);
+  x.beginPath(); x.arc(P.x, P.y, 13, 0, Math.PI * 2); x.fillStyle = "#111114"; x.fill();
+  // tube en S
+  tube(x, path, 8);
+  // porte-cellule noir, lève-bras chromé, cellule, diamant
+  x.save(); x.translate(head.x, head.y); x.rotate(offA);
+  x.shadowColor = "rgba(0,0,0,.7)"; x.shadowBlur = 4; x.shadowOffsetY = 2;
+  const hs = x.createLinearGradient(0, -15, 0, 15); hs.addColorStop(0, "#38383d"); hs.addColorStop(1, "#0e0e10");
+  rr(x, -4, -15, 64, 30, 4); x.fillStyle = hs; x.fill(); x.shadowColor = "transparent";
+  x.strokeStyle = "rgba(255,255,255,.18)"; x.lineWidth = 0.8; rr(x, -3.5, -14.5, 63, 29, 4); x.stroke();
+  const fl = x.createLinearGradient(0, -27, 0, -13); fl.addColorStop(0, "#f0f1f2"); fl.addColorStop(1, "#7b7e83");
+  rr(x, 8, -27, 22, 13, 3); x.fillStyle = fl; x.fill();
+  x.fillStyle = "#1f2023"; rr(x, 22, -9, 36, 18, 2); x.fill();
+  x.fillStyle = "#c9a227"; x.fillRect(49, -9, 3, 18);
+  x.fillStyle = "#f2f2f5"; x.beginPath(); x.arc(56, 0, 2.1 + h * 0.6, 0, Math.PI * 2); x.fill();
+  x.restore();
+}
+function drawLoupe(dt) {
+  const w = loupe.width, cx = w / 2, cy = w / 2, R = w / 2;
+  lg.save(); lg.clearRect(0, 0, w, w);
+  lg.beginPath(); lg.arc(cx, cy, R - 1, 0, Math.PI * 2); lg.clip();
+  lg.fillStyle = "#070708"; lg.fillRect(0, 0, w, w);
+  const onRec = radiusAtTheta(S.armTh) <= RR;
+  const warm = S.lamp && S.power;
+  // le vinyle vu de très près : sillons qui défilent et ondulent avec la musique
+  loupeScroll += S.rec * dt * w * 0.9;
+  if (onRec) {
+    const amp = (S.needleDown ? 1 : 0.35) * Math.min(1, level * 9) * w * 0.012 + w * 0.0015;
+    for (let i = -6; i <= 6; i++) {
+      const y = cy + 30 * dpr + i * w * 0.055;
+      lg.beginPath();
+      for (let xx = 0; xx <= w; xx += 3) {
+        const u = (xx + loupeScroll) / w;
+        const yy = y + Math.sin(u * 37 + i * 1.7) * amp * (0.6 + 0.4 * Math.sin(u * 5.3 + i)) + Math.sin(u * 91 + i * 3.1) * amp * 0.35;
+        xx ? lg.lineTo(xx, yy) : lg.moveTo(xx, yy);
+      }
+      lg.strokeStyle = warm ? `rgba(255,215,160,${0.18 + (i === 0 ? 0.25 : 0)})` : `rgba(200,205,215,${0.12 + (i === 0 ? 0.2 : 0)})`;
+      lg.lineWidth = (i === 0 ? 2.4 : 1.4) * dpr; lg.stroke();
+    }
+  } else { lg.fillStyle = "#26272b"; lg.fillRect(0, cy + 20 * dpr, w, w); }
+  // cantilever et diamant
+  const lift = S.armH * w * 0.13 + (onRec ? 0 : w * 0.18);
+  const tip = { x: cx, y: cy + 30 * dpr - lift };
+  lg.strokeStyle = "#b9a46a"; lg.lineWidth = 5 * dpr; lg.lineCap = "round";
+  lg.beginPath(); lg.moveTo(w * 0.92, cy - w * 0.36 - lift); lg.lineTo(tip.x + 4 * dpr, tip.y - 14 * dpr); lg.stroke();
+  lg.fillStyle = "#26272b"; lg.fillRect(w * 0.7, 0, w * 0.5, cy - w * 0.3 - lift);
+  lg.beginPath(); lg.moveTo(tip.x - 9 * dpr, tip.y - 16 * dpr); lg.lineTo(tip.x + 9 * dpr, tip.y - 16 * dpr); lg.lineTo(tip.x, tip.y); lg.closePath();
+  const dg = lg.createLinearGradient(tip.x - 9 * dpr, tip.y - 16 * dpr, tip.x + 9 * dpr, tip.y);
+  dg.addColorStop(0, "#ffffff"); dg.addColorStop(0.5, "#9fd4ff"); dg.addColorStop(1, "#e8f4ff"); lg.fillStyle = dg; lg.fill();
+  if (S.power) {   // éclat du diamant
+    const sp = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+    lg.fillStyle = `rgba(255,255,255,${0.4 + sp * 0.5})`; lg.beginPath(); lg.arc(tip.x - 2 * dpr, tip.y - 9 * dpr, 2.2 * dpr, 0, Math.PI * 2); lg.fill();
+  }
+  // verre de la loupe
+  const vg = lg.createRadialGradient(cx - R * 0.4, cy - R * 0.5, R * 0.1, cx, cy, R);
+  vg.addColorStop(0, "rgba(255,255,255,.10)"); vg.addColorStop(0.7, "rgba(255,255,255,0)"); vg.addColorStop(1, "rgba(0,0,0,.55)");
+  lg.fillStyle = vg; lg.fillRect(0, 0, w, w);
+  lg.restore();
+  lg.beginPath(); lg.arc(cx, cy, R - 2 * dpr, 0, Math.PI * 2); lg.strokeStyle = "#3a3540"; lg.lineWidth = 3 * dpr; lg.stroke();
+}
+let loupeScroll = 0;
+
+function render(dt) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, deck.width, deck.height);
+  g.setTransform(scale, 0, 0, scale, 0, 0);
+  g.drawImage(base, 0, 0, W, H);
+  drawPlatter(g);
+  drawControls(g);
+  drawArm(g);
+  drawLoupe(dt);
+}
+
+// ======================================================================= physique
+function step(dt) {
+  strobeT += dt;
+  // moteur direct drive : couple fort au démarrage, frein électronique, roue libre si on coupe le courant
+  const target = S.power && S.running ? (S.rpm / 33.3333) * (1 + S.pitch / 100) : 0;
+  const diff = target - S.omega;
+  if (S.power) S.omega += Math.sign(diff) * Math.min(Math.abs(diff), dt * (diff > 0 ? 1.6 : 1.25));
+  else S.omega += Math.sign(diff) * Math.min(Math.abs(diff), dt * 0.12);
+  S.platAng += S.omega * OMEGA0 * dt;
+  // le disque : suit le plateau, ou ta main (scratch)
+  if (S.drag === "rec" && S.held) {
+    const v = S.held.vel; S.rec += (v - S.rec) * Math.min(1, dt * 30);
+    S.held.vel *= Math.pow(0.02, dt);   // main immobile = disque arrêté
+  } else S.rec += (S.omega - S.rec) * Math.min(1, dt * 14);   // la feutrine raccroche le disque au plateau
+  if (S.drag !== "rec") S.recAng += S.rec * OMEGA0 * dt;
+
+  // bras : automatismes, puis hauteur, puis suivi du sillon
+  if (S.auto) autoStep(dt);
+  const wantH = S.drag === "arm" || S.cueUp || (S.auto && S.auto.h !== undefined && S.auto.h > 0.5) ? 1 : 0;
+  const hs = wantH > S.armH ? (S.drag === "arm" ? 8 : 1.6) : (S.cueUp === false && S.drag !== "arm" && S.lastDrop === "hand" ? 9 : 1.1);
+  S.armH += Math.sign(wantH - S.armH) * Math.min(Math.abs(wantH - S.armH), dt * hs);
+  const r = radiusAtTheta(S.armTh), onRec = r <= R_EDGE + 2 && r >= R_RUN - 4;
+  const down = S.armH < 0.04 && onRec;
+  if (down && !S.needleDown) {   // le diamant touche le disque
+    S.needleDown = true; S.pos = posOf(r);
+    if (ctx) { A.seek = S.pos * A.sr; A.thump = S.lastDrop === "hand" ? 0.9 : 0.35; }
+  }
+  if (!down && S.needleDown) { S.needleDown = false; S.lastDrop = null; }
+  if (S.needleDown) {
+    S.pos = ctx ? A.pos / A.sr : S.pos + S.rec * dt;
+    S.armTh = thetaOf(radiusOf(S.pos));
+    const inRun = S.pos > S.dur + 0.1;
+    if (inRun) {   // sillon fermé : un « tic » par tour, puis retour auto
+      const rev = Math.floor(S.recAng / (Math.PI * 2));
+      if (rev !== S.lastRev && ctx) A.tick = 0.35; S.lastRev = rev;
+      if (S.autoReturn && !S.auto && S.pos > S.dur + RUNOUT - 0.05 && S.rec > 0.3) startAuto("out");
+    }
+  }
+  if (ctx) { A.target = S.needleDown ? S.rec : 0; A.gainT = S.needleDown ? 1 : 0; }
+}
+function startAuto(dir) {
+  S.auto = { dir, phase: 0, h: 1 };
+  if (dir === "in") { if (!S.power) { S.power = true; } S.running = true; }
+}
+function autoStep(dt) {
+  const a = S.auto, sp = 0.9 * dt;
+  const go = th => { const d = th - S.armTh; S.armTh += Math.sign(d) * Math.min(Math.abs(d), sp); return Math.abs(d) < 0.002; };
+  if (a.phase === 0) { a.h = 1; if (S.armH > 0.95) a.phase = 1; }
+  else if (a.phase === 1) {
+    if (go(a.dir === "in" ? thetaOf(R_EDGE - 3) : TH_REST)) a.phase = 2;
+  } else if (a.phase === 2) {
+    a.h = 0; S.lastDrop = "auto";
+    if (S.armH < 0.04) { if (a.dir === "out") S.running = false; S.auto = null; }
+  }
+}
+
+// ======================================================================= interactions
+function toLocal(e) { const r = deck.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+function inR(p, r) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+function distSeg(p, a, b) { const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); }
+function hitTest(p) {
+  const st = stylusAt(S.armTh);
+  if (Math.hypot(p.x - st.x, p.y - st.y) < 46 || distSeg(p, P, st) < 14 && Math.hypot(p.x - P.x, p.y - P.y) > 40) return "arm";
+  if (Math.hypot(p.x - KNOB.x, p.y - KNOB.y) < KNOB.r + 6) return "power";
+  if (inR(p, STARTSTOP)) return "startstop";
+  if (inR(p, SP33)) return "s33"; if (inR(p, SP45)) return "s45";
+  if (Math.abs(p.x - PITCH.x) < 26 && p.y > PITCH.y0 - 24 && p.y < PITCH.y1 + 24) return "pitch";
+  if (Math.hypot(p.x - RESET.x, p.y - RESET.y) < RESET.r + 5) return "reset";
+  if (Math.hypot(p.x - CUE.x - 15, p.y - CUE.y) < 30) return "cue";
+  if (Math.hypot(p.x - LAMP.x, p.y - LAMP.y) < LAMP.r + 6) return "lamp";
+  if (Math.hypot(p.x - C.x, p.y - C.y) < RR) return "rec";
+  return null;
+}
+const CURSOR = { arm: "grab", power: "pointer", startstop: "pointer", s33: "pointer", s45: "pointer", pitch: "ns-resize", reset: "pointer", cue: "pointer", lamp: "pointer", rec: "grab" };
+function setPitchFrom(p) {
+  let v = (0.5 - (p.y - PITCH.y0) / (PITCH.y1 - PITCH.y0)) * 2 * S.range;
+  v = Math.max(-S.range, Math.min(S.range, v));
+  if (Math.abs(v) < S.range * 0.035) v = 0;   // cran au centre
+  S.pitch = Math.round(v * 10) / 10;
+}
+deck.addEventListener("pointerdown", e => {
+  ensureAudio();
+  const p = toLocal(e), h = hitTest(p);
+  if (!h) return;
+  deck.setPointerCapture(e.pointerId);
+  switch (h) {
+    case "arm": S.drag = "arm"; S.auto = null; S.grabOff = S.armTh - Math.atan2(p.y - P.y, p.x - P.x); deck.style.cursor = "grabbing"; break;
+    case "power": S.power = !S.power; if (!S.power) S.running = false; break;
+    case "startstop": if (S.power) S.running = !S.running; S.ssPressed = 0.15; break;
+    case "s33": S.rpm = 33.3333; break;
+    case "s45": S.rpm = 45; break;
+    case "pitch": S.drag = "pitch"; setPitchFrom(p); break;
+    case "reset": S.pitch = 0; break;
+    case "cue": S.cueUp = !S.cueUp; S.lastDrop = "cue"; break;
+    case "lamp": S.lamp = !S.lamp; syncButtons(); break;
+    case "rec": S.drag = "rec"; S.held = { ang: Math.atan2(p.y - C.y, p.x - C.x), t: performance.now(), vel: 0 }; deck.style.cursor = "grabbing"; break;
+  }
+  setStatus();
+});
+deck.addEventListener("pointermove", e => {
+  const p = toLocal(e);
+  if (S.drag === "arm") {
+    let th = Math.atan2(p.y - P.y, p.x - P.x) + S.grabOff;
+    if (th < -Math.PI / 2) th += Math.PI * 2;
+    S.armTh = Math.max(TH_MIN, Math.min(TH_MAX, th));
+  } else if (S.drag === "pitch") setPitchFrom(p);
+  else if (S.drag === "rec" && S.held) {
+    const a = Math.atan2(p.y - C.y, p.x - C.x), now = performance.now();
+    let d = a - S.held.ang; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const dt = Math.max(0.004, (now - S.held.t) / 1000);
+    S.recAng += d; S.held.vel = (d / dt) / OMEGA0; S.held.ang = a; S.held.t = now;
+  } else { const h = hitTest(p); if (h !== S.hover) { S.hover = h; deck.style.cursor = CURSOR[h] || "default"; } }
+});
+function endDrag() {
+  if (S.drag === "arm") {
+    const r = radiusAtTheta(S.armTh);
+    S.lastDrop = S.cueUp ? "cue" : "hand";
+    if (r > R_EDGE + 2 || r < R_RUN - 4) { S.auto = { dir: "out", phase: 1, h: 1 }; }   // lâché hors du disque : il retourne sur son repose-bras
+  }
+  S.drag = null; S.held = null; deck.style.cursor = "default"; setStatus();
+}
+deck.addEventListener("pointerup", endDrag);
+deck.addEventListener("pointercancel", endDrag);
+window.addEventListener("keydown", e => {
+  if (e.code === "Space" && !/INPUT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); ensureAudio(); if (!S.power) S.power = true; S.running = !S.running; S.ssPressed = 0.15; setStatus(); }
+});
+
+// boutons de la colonne
+const $ = id => document.getElementById(id);
+$("autoBtn").addEventListener("click", () => {
+  ensureAudio();
+  const r = radiusAtTheta(S.armTh);
+  if (S.needleDown || (r <= R_EDGE + 2 && S.armTh > TH_REST + 0.02)) startAuto("out"); else startAuto("in");
+  setStatus();
+});
+$("returnBtn").addEventListener("click", () => { S.autoReturn = !S.autoReturn; syncButtons(); });
+$("r8").addEventListener("click", () => { S.range = 8; S.pitch = Math.max(-8, Math.min(8, S.pitch)); syncButtons(); });
+$("r16").addEventListener("click", () => { S.range = 16; syncButtons(); });
+$("lampBtn").addEventListener("click", () => { S.lamp = !S.lamp; syncButtons(); });
+$("demoBtn").addEventListener("click", () => { ensureAudio(); if (!ctx) return; liftForSwap(); setTrack(makeDemo(ctx.sampleRate), 120, "Démo « Grenier 124 », générée ici, 2 min"); });
+$("fileIn").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  ensureAudio(); if (!ctx) return;
+  $("trackName").textContent = "Lecture de « " + f.name + " »…";
+  try {
+    const data = await f.arrayBuffer();
+    const b = await new Promise((ok, ko) => ctx.decodeAudioData(data, ok, ko));
+    liftForSwap(); setTrack(b, b.duration, f.name);
+  } catch (err) { $("trackName").textContent = "Ce fichier ne se lit pas ici. Essaie un MP3, un WAV ou un AAC."; }
+});
+function liftForSwap() { if (S.needleDown || S.armTh > TH_REST + 0.02) startAuto("out"); }
+function syncButtons() {
+  $("returnBtn").setAttribute("aria-pressed", S.autoReturn); $("lampBtn").setAttribute("aria-pressed", S.lamp);
+  $("r8").setAttribute("aria-pressed", S.range === 8); $("r16").setAttribute("aria-pressed", S.range === 16);
+}
+
+// ======================================================================= affichages
+const fmtT = s => { s = Math.max(0, s); const m = Math.floor(s / 60); return m + ":" + String(Math.floor(s % 60)).padStart(2, "0"); };
+const fr = (v, d = 1) => v.toFixed(d).replace(".", ",");
+function setStatus() {
+  const parts = [];
+  parts.push(S.power ? "<b>allumée</b>" : "éteinte");
+  parts.push(S.running && S.power ? "plateau lancé" : "plateau à l'arrêt");
+  parts.push(S.needleDown ? "<b>diamant posé</b>" : S.armTh <= TH_REST + 0.02 && S.armH < 0.1 ? "bras au repos" : "bras levé");
+  if (!ctx) parts.push("son en attente d'un clic");
+  $("status").innerHTML = parts.join("  ·  ");
+}
+let lastUi = 0;
+function ui(now) {
+  if (now - lastUi < 120) return; lastUi = now;
+  const sp = S.rec;
+  $("dRpm").textContent = (S.rpm < 40 ? "33⅓" : "45") + " tr/min" + (Math.abs(sp - (S.rpm / 33.3333) * (1 + S.pitch / 100)) > 0.03 && S.power ? "  (" + fr(sp * 33.333, 1) + ")" : "");
+  $("dPitch").textContent = (S.pitch >= 0 ? "+" : "−") + fr(Math.abs(S.pitch)) + " %";
+  $("dBpm").textContent = labelTitle === "Grenier 124" ? fr(124 * (S.rpm / 33.3333) * (1 + S.pitch / 100)) + " BPM" : (S.pitch >= 0 ? "+" : "−") + fr(Math.abs((S.rpm / 33.3333) * (1 + S.pitch / 100) * 100 - 100)) + " % vs l'original";
+  $("dPos").textContent = fmtT(S.pos) + " / " + fmtT(S.dur);
+  const r = radiusAtTheta(S.armTh);
+  $("loupeCap").textContent = S.needleDown ? (S.pos > S.dur ? "sillon de fin" : Math.abs(S.rec) < 0.05 ? "posé, disque arrêté" : "dans le sillon · " + fr(S.rec * (S.rpm < 40 ? 1 : 1)) + "×")
+    : r > R_EDGE + 2 ? "bras au repos" : S.armH > 0.5 ? "levé au-dessus du disque" : "descend…";
+  setStatus();
+}
+
+// ======================================================================= boucle
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (S.ssPressed > 0) S.ssPressed -= dt;
+  step(dt); render(dt); ui(now);
+  requestAnimationFrame(frame);
+}
+window.addEventListener("resize", resize);
+resize(); syncButtons(); setStatus();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { buildBase(); buildRecord(); });
+requestAnimationFrame(frame);
+})();
+</script>

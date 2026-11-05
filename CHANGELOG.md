@@ -3,6 +3,19 @@
 Toutes les versions notables de fadarr. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/),
 versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; English summary under each entry.
 
+## [0.16.0] — 2026-11-05
+### Ajouté
+- **Skin « Technicarr + Xonarr »** : deux platines vinyle à entraînement direct (dessin et physique de la maquette
+  « platinarr » de Ludovic) autour de la table Xonarr. Un lecteur à vitesse variable lit le morceau du deck à la vitesse
+  du disque, en avant comme en arrière, puis passe dans la chaîne habituelle (gain, EQ, filtres, faders, crossfader).
+  START · STOP (montée en vitesse, frein), bras à poser où on veut (le temps suit le bras), levier CUE, retour auto en fin
+  de disque, scratch, pitch ±8 / ±16 relié au tempo du deck (+ vers soi, SYNC compris), 33 / 45, lampe, stroboscope,
+  craquements discrets. Bandeau au-dessus de chaque platine : titre, tonalité, BPM, temps, forme d'onde générale.
+  Changer de skin en pleine lecture ne coupe pas le son.
+- Polices Michroma et IBM Plex embarquées (`public/fonts`, licence OFL) : aucune requête vers l'extérieur.
+
+*EN: new Technicarr + Xonarr look — two direct-drive vinyl turntables with real scratching, wired to the decks.*
+
 ## [0.15.0] — 2026-11-05
 ### Ajouté
 - **Skin « Xonarr + Deckarr »** (menu Skin) : la table Xonarr :26 (façon Xone:96, 2 voies, façade grise vectorielle sans logo)

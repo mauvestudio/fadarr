@@ -56,6 +56,7 @@ Practise on the gear you will play on: the same engine, several faces (Skin menu
 |---|---|---|
 | **Pionarr + Deckarr** | a club mixer (2 channels) between two flagship players | ✅ |
 | **Xonarr + Deckarr** | a British 4-band club mixer (2 channels) between the same players | ✅ |
+| **Technicarr + Xonarr** | two direct-drive vinyl turntables around the British mixer | ✅ |
 | **Traktarr** | Traktor (the current default look) | ✅ |
 | **Rekordarr** | Rekordbox | in progress |
 
@@ -64,6 +65,10 @@ Practise on the gear you will play on: the same engine, several faces (Skin menu
 *Pionarr + Deckarr: turn the browse knob to scroll the library, press it to load; Sound Color FX (SPACE, DUB ECHO, CRUSH, SWEEP, NOISE, FILTER) on the COLOR knobs. All drawn from scratch — no brand logos or artwork.*
 
 ![Xonarr + Deckarr](docs/look-xonarr.jpg)
+
+![Technicarr + Xonarr](docs/look-technicarr.jpg)
+
+*Technicarr + Xonarr: real vinyl handling — START · STOP with motor spin-up and brake, drop the needle anywhere, CUE lever, scratch the record forwards and backwards, ±8 / ±16 pitch (+ towards you), 33 / 45, strobe dots, crackle. Hot cues and SYNC still work (the arm jumps).*
 
 *Xonarr + Deckarr: 4-band EQ, two VCF filters (HPF / BPF / LPF, resonance, frequency, crunch) assigned per channel, X / OFF / Y crossfader assign.*
 

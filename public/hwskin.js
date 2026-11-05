@@ -13,6 +13,11 @@
   // tables : taille du dessin (viewBox) et hauteur affichée (unités des platines, 1260 = hauteur d'une platine)
   const MIXERS = { pionarr: { w: 893, h: 1178, show: 1178 }, xonarr: { w: 694, h: 1410, show: 1260 } };
   const DECK_VB = { w: 900, h: 1260 };
+  // chaque skin : ses platines et sa table ; Technicarr = platines vinyle (canvas, public/technicarr.js) autour de la Xonarr
+  const SKIN = { pionarr: { mixer: 'pionarr' }, xonarr: { mixer: 'xonarr' }, technicarr: { mixer: 'xonarr', vinyl: true } };
+  const TT = { w: 1000, h: 760, strip: 78 }; // platine vinyle : plinthe + bandeau d'infos au-dessus
+  const mixerOf = (name) => (SKIN[name] || {}).mixer || name;
+  let tts = [];
   const cache = {};
   const svgText = (url) => { if (!cache[url]) cache[url] = fetch(url).then((r) => { if (!r.ok) throw new Error(`Skin introuvable (${url})`); return r.text(); }); return cache[url]; };
   const $ = (s, r = document) => r.querySelector(s);
@@ -84,11 +89,15 @@
     if (!A) return; // l'appli finit de démarrer : elle rappellera mount()
     if (mounted === name) return;
     unmount();
-    const [deckSvg, mixSvg] = await Promise.all([svgText(FILES.deckarr), svgText(FILES[name])]);
+    const cfg = SKIN[name] || { mixer: name }; const mixName = cfg.mixer;
+    const [deckSvg, mixSvg] = await Promise.all([cfg.vinyl ? '' : svgText(FILES.deckarr), svgText(FILES[mixName])]);
     const stage = $('#hw-stage');
-    stage.innerHTML = `<div class="hw-row">
+    if (cfg.vinyl) {
+      const tt = (id) => `<div class="hw-unit hw-tt" data-deck="${id}"><div class="tt-strip"><span class="tt-letter${id === 'B' ? ' b' : ''}">${id}</span><div class="tt-tt"><div class="tt-title"></div><div class="tt-artist"></div></div><div class="tt-key"></div><div class="tt-num"><small>BPM</small><b class="tt-bpm"></b></div><div class="tt-num tt-clock"><small class="tt-tlab">REMAIN</small><b class="tt-time"></b></div><div class="tt-over"></div></div><canvas class="tt-canvas"></canvas></div>`;
+      stage.innerHTML = `<div class="hw-row hw-row-tt">${tt('A')}<div class="hw-unit hw-mixer hw-${mixName}" style="height: calc(${TT.h + TT.strip}px * var(--s))">${mixSvg}</div>${tt('B')}</div>`;
+    } else stage.innerHTML = `<div class="hw-row">
       <div class="hw-unit hw-deck" data-deck="A">${deckSvg}<div class="hw-screen"></div><span class="hw-letter">A</span></div>
-      <div class="hw-unit hw-mixer hw-${name}" style="height: calc(${MIXERS[name].show}px * var(--s))">${mixSvg}</div>
+      <div class="hw-unit hw-mixer hw-${mixName}" style="height: calc(${MIXERS[mixName].show}px * var(--s))">${mixSvg}</div>
       <div class="hw-unit hw-deck" data-deck="B">${deckSvg}<div class="hw-screen"></div><span class="hw-letter b">B</span></div>
     </div>`;
     $$('svg', stage).forEach((s) => { s.removeAttribute('width'); s.removeAttribute('height'); });
@@ -98,6 +107,7 @@
     st = { remain: { A: true, B: true }, vinyl: { A: true, B: true }, meters: {}, last: new Map() };
     buildScreens(stage);
     bindControls(stage);
+    if (cfg.vinyl) buildTurntables(stage);
     fit();
     window.addEventListener('resize', fit);
     raf = requestAnimationFrame(tick);
@@ -107,11 +117,12 @@
     if (!mounted) return;
     cancelAnimationFrame(raf); raf = 0;
     window.removeEventListener('resize', fit);
+    for (const t of tts) t.destroy(); tts = [];
     for (const m of moved) { if (m.next && m.next.parentNode === m.parent) m.parent.insertBefore(m.el, m.next); else m.parent.appendChild(m.el); }
     moved = [];
     const stage = $('#hw-stage'); stage.hidden = true; stage.innerHTML = '';
     document.body.classList.remove('hw');
-    if (mounted === 'xonarr') resetXone();
+    if (mixerOf(mounted) === 'xonarr') resetXone();
     ctls = []; mounted = null;
   }
 
@@ -121,9 +132,12 @@
     const head = $('header.top'); const foot = $('footer.status');
     const availH = window.innerHeight - (head ? head.offsetHeight : 0) - (foot ? foot.offsetHeight : 0) - 230; // ~5 lignes de bibliothèque
     const availW = stage.clientWidth - 16;
-    const mx = MIXERS[mounted] || MIXERS.pionarr;
-    const s = Math.max(0.25, Math.min(availH / DECK_VB.h, availW / (DECK_VB.w * 2 + mx.w * mx.show / mx.h + 30)));
+    const mx = MIXERS[mixerOf(mounted)] || MIXERS.pionarr;
+    let s;
+    if ((SKIN[mounted] || {}).vinyl) { const h = TT.h + TT.strip; s = Math.max(0.2, Math.min(availH / h, availW / (TT.w * 2 + mx.w * h / mx.h + 30))); }
+    else s = Math.max(0.25, Math.min(availH / DECK_VB.h, availW / (DECK_VB.w * 2 + mx.w * mx.show / mx.h + 30)));
     row.style.setProperty('--s', s);
+    for (const t of tts) t.resize();
   }
 
   /** Écrans des platines : vraies formes d'onde de fadarr + infos du morceau, à la place de l'aperçu dessiné. */
@@ -343,7 +357,8 @@
     const stage = $('#hw-stage');
     // Sound Color FX allumé
     for (const [ctl, m] of Object.entries(SCFX)) toggle($(`.hw-mixer [data-ctl="${ctl}"]`, stage), 'hw-on', A.soundColor.mode === m);
-    if (mounted === 'xonarr') xoneLights(stage);
+    if (mixerOf(mounted) === 'xonarr') xoneLights(stage);
+    if (tts.length) ttTick(now);
     // vu-mètres
     let masterPk = 0;
     for (const [n, id] of [['1', 'A'], ['2', 'B']]) {
@@ -382,6 +397,31 @@
     }
   }
 
+  /** Technicarr : une platine vinyle par deck ; la forme d'onde générale du deck passe dans le bandeau au-dessus. */
+  function buildTurntables(stage) {
+    tts = [];
+    for (const unit of $$('.hw-tt', stage)) {
+      const d = A.decks[unit.dataset.deck];
+      moved.push({ el: d.overEl, parent: d.overEl.parentNode, next: d.overEl.nextSibling });
+      $('.tt-over', unit).appendChild(d.overEl);
+      $('.tt-clock', unit).addEventListener('click', () => { st.remain[d.id] = !st.remain[d.id]; });
+      tts.push(new window.FadarrTechnicarr.Turntable(unit, d, A));
+    }
+  }
+  function ttTick(now) {
+    for (const t of tts) {
+      t.frame(now);
+      const d = t.d; const unit = t.unit; const tr = d.track; const id = d.id;
+      setOnce(`tt${id}`, tr ? tr.title || '' : '', (v) => { $('.tt-title', unit).textContent = v || A.t('Charge un morceau depuis la bibliothèque (A / B)'); });
+      setOnce(`ta${id}`, tr ? tr.artist || '' : '', (v) => { $('.tt-artist', unit).textContent = v; });
+      setOnce(`tk${id}`, tr ? tr.key || '' : '', (v) => { const k = $('.tt-key', unit); k.textContent = v ? A.showKey(v) : ''; k.style.color = v ? A.keyColor(v) || '#fff' : ''; });
+      const rem = st.remain[id];
+      const tv = d.buffer ? (rem ? A.fmt(-(d.duration - d.position) / d.rate, true) : A.fmt(d.position, true)) : '--:--';
+      setOnce(`tm${id}`, `${rem}|${tv}`, () => { $('.tt-time', unit).textContent = tv; $('.tt-tlab', unit).textContent = rem ? 'REMAIN' : 'ELAPSED'; });
+      setOnce(`bp${id}`, d.bpm ? (d.bpm * d.rate * (t.S.rpm / 33.3333)).toFixed(1) : '—', (v) => { $('.tt-bpm', unit).textContent = v; });
+    }
+  }
+
   /** Xonarr : anneaux des touches de filtre et position des inverseurs. */
   function xoneLights(stage) {
     const X = window.FadarrXone.state;
@@ -416,7 +456,7 @@
     const lvl = db > prev ? db : Math.max(db, prev - 24 * dt);
     st.meters[ctl] = lvl;
     const lit = Math.max(0, Math.min(16, Math.floor((lvl + 33) / 3) + 1));
-    setOnce(`m${ctl}`, mounted === 'xonarr' ? Math.round(lvl) : lit, (n) => {
+    setOnce(`m${ctl}`, mixerOf(mounted) === 'xonarr' ? Math.round(lvl) : lit, (n) => {
       const g = $(`.hw-mixer [data-ctl="${ctl}"]`); if (!g) return;
       // Pionarr : 16 LED numérotées (data-i) ; Xonarr : une LED par seuil en dB (data-db), éteinte = LED noire
       for (const r of g.querySelectorAll('.seg')) r.setAttribute('opacity', r.dataset.db !== undefined ? (lvl >= Number(r.dataset.db) ? '1' : '0.07') : Number(r.dataset.i) < n ? '1' : '0.16');

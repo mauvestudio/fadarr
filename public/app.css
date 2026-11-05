@@ -704,3 +704,26 @@ body.hw section.decks { display: none; }
 .hs-bpm { border-color: #f97316 !important; }
 .hs-bpm small, .hs-bpm b { color: #f97316; }
 .hw-unit svg text { pointer-events: none; } /* les inscriptions ne captent jamais le clic : il va au bouton ou au potard dessous */
+
+/* ---------- Technicarr : platines vinyle (public/technicarr.js) ---------- */
+@font-face { font-family: Michroma; src: url('/fonts/michroma-latin-400-normal.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); font-weight: 400 600; font-display: swap; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('/fonts/ibm-plex-sans-condensed-latin-600-normal.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+.hw-row-tt { align-items: flex-end; }
+.hw-tt { width: calc(1000px * var(--s)); height: calc(838px * var(--s)); display: flex; flex-direction: column; filter: none; }
+.hw-tt .tt-canvas { width: 100%; height: calc(760px * var(--s)); display: block; touch-action: none; }
+.tt-strip { height: calc(72px * var(--s)); margin-bottom: calc(6px * var(--s)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-rows: 1fr calc(16px * var(--s));
+  column-gap: calc(14px * var(--s)); align-items: center; padding: calc(6px * var(--s)) calc(12px * var(--s)); box-sizing: border-box;
+  background: #0a0a0c; border: 1px solid #222128; border-radius: calc(10px * var(--s)); color: #ece8e4; font-family: 'IBM Plex Sans Condensed', Inter, system-ui, sans-serif; }
+.tt-letter { font: 800 calc(34px * var(--s)) Inter, system-ui, sans-serif; color: #fff; }
+.tt-letter.b { color: #f59e0b; }
+.tt-tt { min-width: 0; line-height: 1.15; }
+.tt-title { font-weight: 600; font-size: calc(23px * var(--s)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-artist { font-size: calc(17px * var(--s)); color: #9a929e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-key { font: 600 calc(20px * var(--s)) 'IBM Plex Mono', ui-monospace, monospace; }
+.tt-num { text-align: right; line-height: 1.05; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.tt-num small { display: block; font-size: calc(12px * var(--s)); letter-spacing: .12em; color: #9a929e; }
+.tt-num b { font-weight: 500; font-size: calc(23px * var(--s)); font-variant-numeric: tabular-nums; }
+.tt-clock { cursor: pointer; }
+.tt-over { grid-column: 1 / -1; position: relative; height: 100%; border-radius: calc(4px * var(--s)); overflow: hidden; background: #050506; }
+.tt-over canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
