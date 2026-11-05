@@ -304,7 +304,7 @@
 
     /**
      * Le disque (tourne avec le plateau) : vinyle noir profond, sillons très fins, plages lisses entre les morceaux,
-     * rebord biseauté, zone de sortie miroir, étiquette rouge pressée (anneaux en relief) avec le titre en encre sombre.
+     * rebord biseauté, zone de sortie miroir, macaron noir à liseré violet avec le titre et l'artiste.
      */
     buildRecord() {
       const tr = this.d.track;
@@ -335,33 +335,24 @@
       for (let i = 0; i < 45; i++) { const a = rnd() * Math.PI * 2; const r = LABEL + 12 + rnd() * (RR - LABEL - 18); x.fillStyle = `rgba(255,255,255,${0.12 + rnd() * 0.28})`; x.fillRect(cx + r * Math.cos(a), cy + r * Math.sin(a), 0.5 + rnd() * 0.8, 0.5); }
       // anneau mat autour de l'étiquette
       x.strokeStyle = 'rgba(255,255,255,.05)'; x.lineWidth = 6; x.beginPath(); x.arc(cx, cy, LABEL + 6, 0, Math.PI * 2); x.stroke();
-      // étiquette rouge pressée
+      // macaron (étiquette) : noir mat, liseré violet, titre et artiste du morceau
       x.save(); x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); x.clip();
-      const lab = x.createRadialGradient(cx - 20, cy - 24, 8, cx, cy, LABEL); lab.addColorStop(0, '#f2453a'); lab.addColorStop(0.7, '#e2342b'); lab.addColorStop(1, '#c92a22');
+      const lab = x.createRadialGradient(cx, cy, 10, cx, cy, LABEL); lab.addColorStop(0, '#1b1b1e'); lab.addColorStop(1, '#141416');
       x.fillStyle = lab; x.fillRect(0, 0, RR * 2, RR * 2);
-      x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); grainFill(x, 0.22, 'overlay');
-      // anneaux en relief (pressage) : un trait clair + un trait sombre décalés, éclairés du même côté que le plateau
-      for (const rr0 of [LABEL * 0.8, LABEL * 0.47, LABEL * 0.2]) {
-        x.lineWidth = 1.1;
-        x.strokeStyle = 'rgba(255,190,180,.35)'; x.beginPath(); x.arc(cx - 0.6, cy - 0.6, rr0, 0, Math.PI * 2); x.stroke();
-        x.strokeStyle = 'rgba(90,10,8,.45)'; x.beginPath(); x.arc(cx + 0.6, cy + 0.6, rr0, 0, Math.PI * 2); x.stroke();
-      }
-      x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 2; x.beginPath(); x.arc(cx, cy, LABEL - 1, 0, Math.PI * 2); x.stroke();
-      // texte imprimé en encre sombre, discret, entre les anneaux
-      const ink = 'rgba(40,6,5,.78)';
+      x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); grainFill(x, 0.35, 'overlay');
+      x.beginPath(); x.arc(cx, cy, LABEL - 5, 0, Math.PI * 2); x.strokeStyle = '#b9a0ff'; x.lineWidth = 1.2; x.stroke();
+      x.beginPath(); x.arc(cx, cy, LABEL - 9, 0, Math.PI * 2); x.strokeStyle = 'rgba(185,160,255,.35)'; x.lineWidth = 0.6; x.stroke();
+      x.font = `300 17px ${F_DISP}`; const wA = x.measureText('Technic').width; x.font = `700 17px ${F_DISP}`; const wB = x.measureText('arr').width;
+      x.textAlign = 'left'; x.fillStyle = '#ece8f6'; x.font = `300 17px ${F_DISP}`; x.fillText('Technic', cx - (wA + wB) / 2, cy - 32);
+      x.font = `700 17px ${F_DISP}`; x.fillStyle = '#b9a0ff'; x.fillText('arr', cx - (wA + wB) / 2 + wA, cy - 32);
+      x.textAlign = 'center'; x.fillStyle = '#ece8f6';
       const fit = (t, max) => { let u = t; while (u.length > 3 && x.measureText(u).width > max) u = u.slice(0, -2); return u === t ? t : `${u.trim()}…`; };
-      x.textAlign = 'center'; x.fillStyle = ink;
-      x.font = `300 11px ${F_DISP}`; const wA = x.measureText('Technic').width; x.font = `700 11px ${F_DISP}`; const wB = x.measureText('arr').width;
-      x.textAlign = 'left'; x.font = `300 11px ${F_DISP}`; x.fillText('Technic', cx - (wA + wB) / 2, cy - 54); x.font = `700 11px ${F_DISP}`; x.fillText('arr', cx - (wA + wB) / 2 + wA, cy - 54);
-      x.textAlign = 'center';
-      x.font = `600 11.5px ${F_BODY}`; x.fillText(fit(title || 'fadarr', 120), cx, cy + 58);
-      if (artist) { x.font = `500 9.5px ${F_BODY}`; x.fillStyle = 'rgba(40,6,5,.62)'; x.fillText(fit(artist, 110), cx, cy + 70); }
-      x.font = `7px ${F_MONO}`; x.fillStyle = 'rgba(40,6,5,.55)';
-      x.fillText(`A  ·  ${this.S.rpm < 40 ? '33⅓' : '45'}`, cx + 62, cy + 3); x.fillText('LC-001', cx - 62, cy + 3);
+      x.font = `600 12px ${F_BODY}`; x.fillText(fit(title || 'fadarr', 150), cx, cy + 32);
+      if (artist) { x.font = `500 10px ${F_BODY}`; x.fillStyle = 'rgba(236,232,246,.75)'; x.fillText(fit(artist, 140), cx, cy + 46); }
+      x.font = `8px ${F_DISP}`; x.fillStyle = 'rgba(236,232,246,.6)'; x.fillText(`FACE A  ·  ${this.S.rpm < 40 ? '33⅓' : '45'} TR/MIN`, cx, cy + 62);
+      x.font = `7.5px ${F_MONO}`; x.fillText('CRÉPITE  ·  LC-001', cx, cy - 16);
       x.restore();
-      // trou central
-      x.beginPath(); x.arc(cx, cy, 5.2, 0, Math.PI * 2); x.fillStyle = '#000'; x.fill();
-      x.strokeStyle = 'rgba(255,220,210,.5)'; x.lineWidth = 0.8; x.beginPath(); x.arc(cx, cy, 5.6, 0, Math.PI * 2); x.stroke();
+      x.beginPath(); x.arc(cx, cy, 5, 0, Math.PI * 2); x.fillStyle = '#000'; x.fill();
       this.recordImg = c;
     }
 

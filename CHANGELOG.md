@@ -13,7 +13,7 @@ versions en [SemVer](https://semver.org/lang/fr/). / All notable changes; Englis
   craquements discrets. Bandeau au-dessus de chaque platine : titre, tonalité, BPM, temps, forme d'onde générale.
   Changer de skin en pleine lecture ne coupe pas le son.
 - **Rendu vinyle** : noir profond et brillant, sillons fins, plages entre les morceaux, deux grands reflets fixes (la
-  lumière de la pièce ne tourne pas avec le disque), rebord biseauté, étiquette rouge pressée avec anneaux en relief.
+  lumière de la pièce ne tourne pas avec le disque), rebord biseauté ; macaron noir à liseré violet.
 - Polices Michroma et IBM Plex embarquées (`public/fonts`, licence OFL) : aucune requête vers l'extérieur.
 
 *EN: new Technicarr + Xonarr look — two direct-drive vinyl turntables with real scratching, wired to the decks.*
