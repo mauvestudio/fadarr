@@ -43,6 +43,8 @@
   const distSeg = (p, a, b) => { const dx = b.x - a.x; const dy = b.y - a.y; const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
   function rr(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
 
+  /** Aléatoire reproductible de bonne qualité (mulberry32) : un LCG simple aligne ses tirages et dessine des anneaux. */
+  function rng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
   let grainTile = null;
   function grain(size, seed) {
     const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); const im = x.createImageData(size, size);
@@ -227,7 +229,7 @@
       const w = this.canvas.clientWidth || W;
       this.canvas.width = Math.round(w * this.dpr); this.canvas.height = Math.round(w * H / W * this.dpr);
       this.scale = this.canvas.width / W;
-      this.buildBase(); this.recordKey = '';
+      this.buildBase(); this.recordKey = ''; this.sheenKey = '';
     }
     off(w, h) { const c = document.createElement('canvas'); c.width = Math.ceil(w * this.scale); c.height = Math.ceil(h * this.scale); const x = c.getContext('2d'); x.scale(this.scale, this.scale); return [c, x]; }
 
@@ -297,6 +299,13 @@
       this.base = c;
     }
 
+    /** Plages du disque (entre les morceaux) : rayons des sillons plus larges et lisses. */
+    bands() { return [0.17, 0.39, 0.62, 0.81].map((f) => R_OUT - f * (R_OUT - R_END)); }
+
+    /**
+     * Le disque (tourne avec le plateau) : vinyle noir profond, sillons très fins, plages lisses entre les morceaux,
+     * rebord biseauté, zone de sortie miroir, étiquette rouge pressée (anneaux en relief) avec le titre en encre sombre.
+     */
     buildRecord() {
       const tr = this.d.track;
       const title = tr ? (tr.title || tr.path.split('/').pop().replace(/\.[a-z0-9]+$/i, '')) : '';
@@ -304,33 +313,95 @@
       const key = `${this.scale}|${title}|${artist}|${this.S.rpm}`;
       if (key === this.recordKey) return; this.recordKey = key;
       const [c, x] = this.off(RR * 2, RR * 2); const cx = RR; const cy = RR;
-      x.beginPath(); x.arc(cx, cy, RR, 0, Math.PI * 2); x.fillStyle = '#0a0a0b'; x.fill();
-      let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-      for (let r = LABEL + 4; r < RR - 2; r += 0.55) {
-        const inTrack = r > R_END - 2 && r < R_OUT + 1; const a = inTrack ? 0.035 + rnd() * 0.06 : 0.015 + rnd() * 0.01;
-        x.strokeStyle = `rgba(255,255,255,${a})`; x.lineWidth = 0.35; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+      const rnd = rng(11);
+      // corps
+      const body = x.createRadialGradient(cx, cy, LABEL, cx, cy, RR); body.addColorStop(0, '#060607'); body.addColorStop(0.92, '#09090a'); body.addColorStop(1, '#131315');
+      x.beginPath(); x.arc(cx, cy, RR, 0, Math.PI * 2); x.fillStyle = body; x.fill();
+      // sillons : un trait par ~0,45 unité, intensité qui varie doucement (modulation de la gravure)
+      const bands = this.bands();
+      // sillons : de fins arcs clairs semés au hasard (des cercles réguliers d'un pixel feraient du moiré)
+      for (let i = 0; i < 5200; i++) {
+        const r = R_END - 1 + rnd() * (R_OUT - R_END + 3); if (Math.min(...bands.map((b) => Math.abs(r - b))) < 1.4) continue;
+        const a0 = rnd() * Math.PI * 2; x.strokeStyle = `rgba(255,255,255,${0.01 + rnd() * 0.025})`; x.lineWidth = 0.35 + rnd() * 0.35;
+        x.beginPath(); x.arc(cx, cy, r, a0, a0 + 0.3 + rnd() * 1.6); x.stroke();
       }
-      [0.22, 0.47, 0.71].forEach((f) => { const r = R_OUT - f * (R_OUT - R_END); x.strokeStyle = 'rgba(0,0,0,.9)'; x.lineWidth = 2.6; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); });
-      for (let i = 0; i < 70; i++) { const a = rnd() * Math.PI * 2; const r = LABEL + 10 + rnd() * (RR - LABEL - 14); x.fillStyle = `rgba(255,255,255,${0.15 + rnd() * 0.35})`; x.fillRect(cx + r * Math.cos(a), cy + r * Math.sin(a), 0.6 + rnd(), 0.6); }
-      x.strokeStyle = 'rgba(255,255,255,.18)'; x.lineWidth = 1; x.beginPath(); x.arc(cx, cy, RR - 0.6, 0, Math.PI * 2); x.stroke();
+      bands.forEach((b) => { x.strokeStyle = 'rgba(0,0,0,.95)'; x.lineWidth = 2.4; x.beginPath(); x.arc(cx, cy, b, 0, Math.PI * 2); x.stroke(); });
+      // entrée (bord) et sortie (vers l'étiquette) : quelques sillons espacés, puis le miroir
+      for (const [r0, r1] of [[R_OUT + 3, RR - 4], [LABEL + 14, R_END - 3]]) for (let r = r0; r < r1; r += 3.1) { x.strokeStyle = 'rgba(255,255,255,.03)'; x.lineWidth = 0.6; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); }
+      // rebord biseauté
+      x.strokeStyle = 'rgba(255,255,255,.10)'; x.lineWidth = 2; x.beginPath(); x.arc(cx, cy, RR - 2, 0, Math.PI * 2); x.stroke();
+      x.strokeStyle = 'rgba(0,0,0,.9)'; x.lineWidth = 1.2; x.beginPath(); x.arc(cx, cy, RR - 3.6, 0, Math.PI * 2); x.stroke();
+      // poussières (rares)
+      for (let i = 0; i < 45; i++) { const a = rnd() * Math.PI * 2; const r = LABEL + 12 + rnd() * (RR - LABEL - 18); x.fillStyle = `rgba(255,255,255,${0.12 + rnd() * 0.28})`; x.fillRect(cx + r * Math.cos(a), cy + r * Math.sin(a), 0.5 + rnd() * 0.8, 0.5); }
+      // anneau mat autour de l'étiquette
+      x.strokeStyle = 'rgba(255,255,255,.05)'; x.lineWidth = 6; x.beginPath(); x.arc(cx, cy, LABEL + 6, 0, Math.PI * 2); x.stroke();
+      // étiquette rouge pressée
       x.save(); x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); x.clip();
-      const lab = x.createRadialGradient(cx, cy, 10, cx, cy, LABEL); lab.addColorStop(0, '#1b1b1e'); lab.addColorStop(1, '#141416');
+      const lab = x.createRadialGradient(cx - 20, cy - 24, 8, cx, cy, LABEL); lab.addColorStop(0, '#f2453a'); lab.addColorStop(0.7, '#e2342b'); lab.addColorStop(1, '#c92a22');
       x.fillStyle = lab; x.fillRect(0, 0, RR * 2, RR * 2);
-      x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); grainFill(x, 0.35, 'overlay');
-      x.beginPath(); x.arc(cx, cy, LABEL - 5, 0, Math.PI * 2); x.strokeStyle = '#b9a0ff'; x.lineWidth = 1.2; x.stroke();
-      x.beginPath(); x.arc(cx, cy, LABEL - 9, 0, Math.PI * 2); x.strokeStyle = 'rgba(185,160,255,.35)'; x.lineWidth = 0.6; x.stroke();
-      x.font = `300 17px ${F_DISP}`; const wA = x.measureText('Technic').width; x.font = `700 17px ${F_DISP}`; const wB = x.measureText('arr').width;
-      x.textAlign = 'left'; x.fillStyle = '#ece8f6'; x.font = `300 17px ${F_DISP}`; x.fillText('Technic', cx - (wA + wB) / 2, cy - 32);
-      x.font = `700 17px ${F_DISP}`; x.fillStyle = '#b9a0ff'; x.fillText('arr', cx - (wA + wB) / 2 + wA, cy - 32);
-      x.textAlign = 'center'; x.fillStyle = '#ece8f6';
+      x.beginPath(); x.arc(cx, cy, LABEL, 0, Math.PI * 2); grainFill(x, 0.22, 'overlay');
+      // anneaux en relief (pressage) : un trait clair + un trait sombre décalés, éclairés du même côté que le plateau
+      for (const rr0 of [LABEL * 0.8, LABEL * 0.47, LABEL * 0.2]) {
+        x.lineWidth = 1.1;
+        x.strokeStyle = 'rgba(255,190,180,.35)'; x.beginPath(); x.arc(cx - 0.6, cy - 0.6, rr0, 0, Math.PI * 2); x.stroke();
+        x.strokeStyle = 'rgba(90,10,8,.45)'; x.beginPath(); x.arc(cx + 0.6, cy + 0.6, rr0, 0, Math.PI * 2); x.stroke();
+      }
+      x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 2; x.beginPath(); x.arc(cx, cy, LABEL - 1, 0, Math.PI * 2); x.stroke();
+      // texte imprimé en encre sombre, discret, entre les anneaux
+      const ink = 'rgba(40,6,5,.78)';
       const fit = (t, max) => { let u = t; while (u.length > 3 && x.measureText(u).width > max) u = u.slice(0, -2); return u === t ? t : `${u.trim()}…`; };
-      x.font = `600 12px ${F_BODY}`; x.fillText(fit(title || 'fadarr', 150), cx, cy + 32);
-      if (artist) { x.font = `500 10px ${F_BODY}`; x.fillStyle = 'rgba(236,232,246,.75)'; x.fillText(fit(artist, 140), cx, cy + 46); }
-      x.font = `8px ${F_DISP}`; x.fillStyle = 'rgba(236,232,246,.6)'; x.fillText(`FACE A  ·  ${this.S.rpm < 40 ? '33⅓' : '45'} TR/MIN`, cx, cy + 62);
-      x.font = `7.5px ${F_MONO}`; x.fillText('CRÉPITE  ·  LC-001', cx, cy - 16);
+      x.textAlign = 'center'; x.fillStyle = ink;
+      x.font = `300 11px ${F_DISP}`; const wA = x.measureText('Technic').width; x.font = `700 11px ${F_DISP}`; const wB = x.measureText('arr').width;
+      x.textAlign = 'left'; x.font = `300 11px ${F_DISP}`; x.fillText('Technic', cx - (wA + wB) / 2, cy - 54); x.font = `700 11px ${F_DISP}`; x.fillText('arr', cx - (wA + wB) / 2 + wA, cy - 54);
+      x.textAlign = 'center';
+      x.font = `600 11.5px ${F_BODY}`; x.fillText(fit(title || 'fadarr', 120), cx, cy + 58);
+      if (artist) { x.font = `500 9.5px ${F_BODY}`; x.fillStyle = 'rgba(40,6,5,.62)'; x.fillText(fit(artist, 110), cx, cy + 70); }
+      x.font = `7px ${F_MONO}`; x.fillStyle = 'rgba(40,6,5,.55)';
+      x.fillText(`A  ·  ${this.S.rpm < 40 ? '33⅓' : '45'}`, cx + 62, cy + 3); x.fillText('LC-001', cx - 62, cy + 3);
       x.restore();
-      x.beginPath(); x.arc(cx, cy, 5, 0, Math.PI * 2); x.fillStyle = '#000'; x.fill();
+      // trou central
+      x.beginPath(); x.arc(cx, cy, 5.2, 0, Math.PI * 2); x.fillStyle = '#000'; x.fill();
+      x.strokeStyle = 'rgba(255,220,210,.5)'; x.lineWidth = 0.8; x.beginPath(); x.arc(cx, cy, 5.6, 0, Math.PI * 2); x.stroke();
       this.recordImg = c;
+    }
+
+    /**
+     * Reflet du vinyle (fixe : c'est la lumière de la pièce, il ne tourne pas avec le disque) : les sillons accrochent la
+     * lumière en deux grands éventails opposés. Les sillons étant circulaires, le calque est construit une fois.
+     */
+    buildSheen() {
+      const key = `${this.scale}`; if (this.sheenKey === key) return; this.sheenKey = key;
+      const [c, x] = this.off(RR * 2, RR * 2); const cx = RR; const cy = RR;
+      const rnd = rng(7);
+      // profil radial : sillons brillants (légère variation d'un morceau à l'autre), plages sombres, entrée / sortie plus mates
+      const bands = this.bands(); const prof = x.createRadialGradient(cx, cy, LABEL + 8, cx, cy, RR - 2);
+      const span = RR - 2 - (LABEL + 8); const at = (rad) => Math.max(0, Math.min(1, (rad - LABEL - 8) / span));
+      prof.addColorStop(0, 'rgba(255,255,255,.18)'); prof.addColorStop(at(R_END - 3), 'rgba(255,255,255,.22)');
+      const edges = [R_END, ...bands.slice().reverse(), R_OUT];
+      for (let i = 0; i < edges.length - 1; i++) {
+        const r0 = edges[i]; const r1 = edges[i + 1]; const lv = 0.75 + rnd() * 0.25;
+        prof.addColorStop(at(r0 + 1.6), `rgba(255,255,255,${lv})`); prof.addColorStop(at(r1 - 1.6), `rgba(255,255,255,${lv * (0.9 + rnd() * 0.1)})`);
+        if (i < edges.length - 2) prof.addColorStop(at(r1), 'rgba(255,255,255,.06)');
+      }
+      prof.addColorStop(at(R_OUT + 3), 'rgba(255,255,255,.35)'); prof.addColorStop(1, 'rgba(255,255,255,.3)');
+      x.beginPath(); x.arc(cx, cy, RR - 2, 0, Math.PI * 2); x.arc(cx, cy, LABEL + 8, 0, Math.PI * 2, true); x.fillStyle = prof; x.fill('evenodd');
+      // grain fin des sillons dans le reflet : bruit tourné en anneaux (pas de traits réguliers, donc pas de moiré)
+      x.save(); x.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < 2600; i++) { const rad = LABEL + 10 + rnd() * (RR - LABEL - 13); const a0 = rnd() * Math.PI * 2; x.strokeStyle = `rgba(0,0,0,${0.15 + rnd() * 0.35})`; x.lineWidth = 0.4 + rnd() * 0.6; x.beginPath(); x.arc(cx, cy, rad, a0, a0 + 0.2 + rnd() * 1.2); x.stroke(); }
+      x.restore();
+      // masque : deux éventails (haut-droite et bas-gauche), plus un léger troisième, comme sur la photo
+      x.globalCompositeOperation = 'destination-in';
+      if (x.createConicGradient) {
+        const g = x.createConicGradient(-Math.PI * 0.32, cx, cy);
+        [[0, 0], [0.03, 0.12], [0.085, 0.75], [0.105, 0.55], [0.17, 0.12], [0.26, 0], [0.47, 0], [0.5, 0.1], [0.565, 0.6], [0.585, 0.4], [0.65, 0.07], [0.74, 0], [0.9, 0], [0.95, 0.05], [1, 0]]
+          .forEach(([o, al]) => g.addColorStop(o, `rgba(0,0,0,${al})`));
+        x.fillStyle = g; x.fillRect(0, 0, RR * 2, RR * 2);
+      }
+      x.globalCompositeOperation = 'source-over';
+      // voile brillant très doux sur tout le disque (vernis du vinyle)
+      const v = x.createLinearGradient(RR * 2, 0, 0, RR * 2); v.addColorStop(0, 'rgba(255,255,255,.05)'); v.addColorStop(0.5, 'rgba(255,255,255,0)'); v.addColorStop(1, 'rgba(255,255,255,.03)');
+      x.beginPath(); x.arc(cx, cy, RR - 2, 0, Math.PI * 2); x.arc(cx, cy, LABEL + 2, 0, Math.PI * 2, true); x.fillStyle = v; x.fill('evenodd');
+      this.sheenImg = c;
     }
 
     drawStrobe(x) {
@@ -362,12 +433,8 @@
         this.buildRecord();
         x.save(); x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 6; x.shadowOffsetY = 2;
         x.translate(C.x, C.y); x.rotate(S.recAng); x.drawImage(this.recordImg, -RR, -RR, RR * 2, RR * 2); x.restore();
-        if (x.createConicGradient) {
-          const cg = x.createConicGradient(LIGHT, C.x, C.y);
-          [[0, 0], [0.025, 0.13], [0.05, 0.05], [0.08, 0], [0.47, 0], [0.5, 0.09], [0.53, 0], [1, 0]].forEach(([o, a]) => cg.addColorStop(o, `rgba(255,255,255,${a})`));
-          x.save(); x.beginPath(); x.arc(C.x, C.y, RR - 1, 0, Math.PI * 2); x.arc(C.x, C.y, LABEL, 0, Math.PI * 2, true);
-          x.globalCompositeOperation = 'screen'; x.fillStyle = cg; x.fill('evenodd'); x.restore();
-        }
+        this.buildSheen();
+        x.save(); x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.68; x.drawImage(this.sheenImg, C.x - RR, C.y - RR, RR * 2, RR * 2); x.restore();
       } else {
         x.save(); x.translate(C.x, C.y); x.rotate(S.recAng);
         for (let r = 60; r < RR; r += 14) { x.strokeStyle = 'rgba(255,255,255,.035)'; x.lineWidth = 6; x.beginPath(); x.arc(0, 0, r, 0, Math.PI * 2); x.stroke(); }
